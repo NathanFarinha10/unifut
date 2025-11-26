@@ -1433,13 +1433,23 @@ with tab_clubs:
         with col_stats:
             st.subheader("Elenco Principal")
             if len(team.players) > 0:
-                roster_data = [{
-                    "Nome": p.name, 
-                    "Pos": p.position, 
-                    "Idade": p.age, 
-                    "Ovr": p.overall, 
-                    "Valor": f"R$ {p.market_value/1e6:.1f}M"
-                } for p in team.players]
+                roster_data = []
+                for p in team.players:
+                    # Formatação visual da evolução
+                    evo_str = ""
+                    if p.last_evolution > 0: evo_str = f" (+{p.last_evolution}) 🟢"
+                    elif p.last_evolution < 0: evo_str = f" ({p.last_evolution}) 🔻"
+                    else: evo_str = " (-)"
+                    
+                    roster_data.append({
+                        "Nome": p.name, 
+                        "Pos": p.position, 
+                        "Idade": p.age, 
+                        "Ovr": f"{p.overall}{evo_str}", # Exibe: 82 (+2) 🟢
+                        "Valor": f"R$ {p.market_value/1e6:.1f}M",
+                        "Contrato": f"{p.contract_years} anos"
+                    })
+                
                 st.dataframe(pd.DataFrame(roster_data), height=300, use_container_width=True)
             else:
                 st.info("Elenco ainda não gerado.")
