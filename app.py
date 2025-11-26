@@ -52,6 +52,15 @@ st.set_page_config(page_title="UniFUT Simulação", layout="wide", page_icon="�
 
 # --- CLASSES ESTRUTURAIS ---
 
+class Coach:
+    def __init__(self, name, style, age):
+        self.name = name
+        self.style = style # "Posse", "Contra-Ataque", "Retranca", "Equilibrado"
+        self.age = age
+        
+    def __repr__(self):
+        return f"{self.name} ({self.style})"
+
 class Player:
     def __init__(self, name, position, age, overall, team_name):
         self.name = name
@@ -163,6 +172,7 @@ class Team:
         self.rating = rating 
         self.players = []
         self.logo = LOGO_URLS.get(name, GENERIC_LOGO)
+        self.coach = None
         
         # Economia
         self.budget = 0
@@ -368,35 +378,77 @@ class UniFUTEngine:
         return [t for t in self.teams if t.league == league]
 
     def simulate_match(self, team_a, team_b, is_knockout=False, return_events=False):
+        # 1. Análise Tática (Pedra-Papel-Tesoura)
+        tactical_bonus = 0
+        tactical_msg = ""
+        
+        if team_a.coach and team_b.coach:
+            s1 = team_a.coach.style
+            s2 = team_b.coach.style
+            
+            # Regras de Vantagem
+            # Contra-Ataque > Posse
+            # Retranca > Contra-Ataque
+            # Posse > Retranca
+            # Gegenpress é neutro/agressivo (bônus pequeno contra todos, risco de cansaço)
+            
+            if "Contra-Ataque" in s1 and "Posse" in s2:
+                tactical_bonus = 8
+                tactical_msg = f"🧠 TÁTICA: O Contra-Ataque de {team_a.name} anulou a Posse de {team_b.name}!"
+            elif "Retranca" in s1 and "Contra-Ataque" in s2:
+                tactical_bonus = 8
+                tactical_msg = f"🧠 TÁTICA: A Retranca de {team_a.name} frustrou o Contra-Ataque de {team_b.name}!"
+            elif "Posse" in s1 and "Retranca" in s2:
+                tactical_bonus = 8
+                tactical_msg = f"🧠 TÁTICA: A Posse de {team_a.name} envolveu a Retranca de {team_b.name}!"
+            
+            # Espelho (Vice-versa para o time B)
+            elif "Contra-Ataque" in s2 and "Posse" in s1:
+                tactical_bonus = -8
+                tactical_msg = f"🧠 TÁTICA: {team_b.name} explorou os espaços com Contra-Ataque!"
+            elif "Retranca" in s2 and "Contra-Ataque" in s1:
+                tactical_bonus = -8
+                tactical_msg = f"🧠 TÁTICA: {team_b.name} se fechou bem contra o ataque rápido!"
+            elif "Posse" in s2 and "Retranca" in s1:
+                tactical_bonus = -8
+                tactical_msg = f"🧠 TÁTICA: {team_b.name} controlou o jogo contra a defesa fechada!"
+
+        # 2. Cálculo de Probabilidade (Com Bônus Tático)
         home_advantage = 5
-        diff = (team_a.rating + home_advantage) - team_b.rating
+        # O rating efetivo considera a tática
+        rating_a_final = team_a.rating + tactical_bonus
+        
+        diff = (rating_a_final + home_advantage) - team_b.rating
         prob_a = 1 / (1 + 10 ** (-diff / 400))
         
+        # 3. Simulação de Gols
         avg_goals = 2.5
         goals_a = np.random.poisson(avg_goals * (prob_a + 0.1))
         goals_b = np.random.poisson(avg_goals * ((1 - prob_a) + 0.1))
         
         match_events = []
         
-        # --- ATRIBUIÇÃO DE GOLS E STATS ---
+        # ... (Atribuição de gols e stats continua igual) ...
         scorers_a = self._assign_goals(team_a, goals_a)
         scorers_b = self._assign_goals(team_b, goals_b)
         
-        # Registrar estatísticas nos jogadores
         for p in scorers_a: p.goals += 1
         for p in scorers_b: p.goals += 1
         
-        # Incrementar partidas jogadas (titulares fictícios)
-        # Simplificação: Todos do elenco ganham +1 jogo? Não, vamos pegar 11 aleatórios
         for t in [team_a, team_b]:
-            starters = random.sample(t.players, min(11, len(t.players)))
-            for p in starters: p.matches += 1
+            if t.players: # Proteção para time vazio
+                starters = random.sample(t.players, min(11, len(t.players)))
+                for p in starters: p.matches += 1
 
-        # NARRATIVA (Atualizada com nomes dos artilheiros)
+        # NARRATIVA ATUALIZADA
         if return_events:
             match_events.append(f"📢 INÍCIO: {team_a.name} vs {team_b.name}")
+            match_events.append(f"👔 Duelo: {team_a.coach.name} ({team_a.coach.style}) x {team_b.coach.name} ({team_b.coach.style})")
             
-            # Misturar gols de A e B para cronologia
+            if tactical_msg:
+                match_events.append(tactical_msg) # Mostra se houve "nó tático"
+            
+            # (Resto da narrativa de gols igual...)
             timeline = []
             for p in scorers_a: timeline.append((random.randint(1,90), team_a.name, p.name))
             for p in scorers_b: timeline.append((random.randint(1,90), team_b.name, p.name))
@@ -1012,6 +1064,22 @@ class UniFUTEngine:
             if t.name == name: return t
         return None
 
+    # --- NOVO: GERADOR DE TREINADORES (SPRINT 8.0) ---
+    def generate_coaches(self):
+        styles = ["Posse de Bola ⚽", "Contra-Ataque ⚡", "Retranca 🛡️", "Gegenpress 🏃"]
+        
+        for team in self.teams:
+            if team.coach: continue # Já tem técnico
+            
+            # Gerar nome
+            name = self.fake.name_male()
+            # Estilo aleatório
+            style = random.choice(styles)
+            # Idade
+            age = random.randint(35, 65)
+            
+            team.coach = Coach(name, style, age)
+
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
 @st.cache_resource
@@ -1061,6 +1129,8 @@ def initialize_system():
         # (Aqui entraria o código antigo de geração aleatória como backup)
     
     engine.generate_rosters()
+
+    engine.generate_coaches()
 
     engine.initialize_economy()
 
@@ -1427,6 +1497,8 @@ with tab_clubs:
             st.image(team.logo, width=150)
             st.markdown(f"**{team.name}**")
             st.caption(f"{team.league} - {team.division}")
+            if team.coach:
+                st.info(f"👔 Técnico: {team.coach.name}\n\nEstilo: {team.coach.style}")
             st.metric("Rating Geral", team.rating)
             st.metric("Orçamento", f"R$ {team.budget/1e6:.1f}M")
             
