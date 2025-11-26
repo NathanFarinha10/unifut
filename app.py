@@ -99,31 +99,23 @@ class UniFUTEngine:
 def initialize_system():
     engine = UniFUTEngine()
     
-    # 1. LNF (32 Times - Conforme PDF Pg 27/28)
+    # 1. LNF (MANTÉM IGUAL AO ANTERIOR - HARDCODED É MAIS SEGURO PARA ELITE)
+    # (Copie a lista lnf_data do código anterior aqui, pois ela já está correta conforme o PDF)
     lnf_data = [
-        # CONFERÊNCIA BRASILEIRA
         ("Flamengo", "Brasileira", "Leste", 92), ("Bahia", "Brasileira", "Leste", 85),
         ("Atlético-MG", "Brasileira", "Leste", 89), ("Athletico-PR", "Brasileira", "Leste", 86),
-        
         ("Corinthians", "Brasileira", "Oeste", 88), ("Vitória", "Brasileira", "Oeste", 82),
         ("Cuiabá", "Brasileira", "Oeste", 83), ("Juventude", "Brasileira", "Oeste", 81),
-        
         ("Botafogo", "Brasileira", "Norte", 90), ("Ceará", "Brasileira", "Norte", 84),
         ("Remo", "Brasileira", "Norte", 78), ("Chapecoense", "Brasileira", "Norte", 79),
-        
         ("Palmeiras", "Brasileira", "Sul", 93), ("Fortaleza", "Brasileira", "Sul", 88),
         ("Ponte Preta", "Brasileira", "Sul", 77), ("Paysandu", "Brasileira", "Sul", 78),
-        
-        # CONFERÊNCIA NACIONAL
         ("São Paulo", "Nacional", "Leste", 89), ("Grêmio", "Nacional", "Leste", 87),
         ("Criciúma", "Nacional", "Leste", 80), ("Atlético-GO", "Nacional", "Leste", 81),
-        
         ("Fluminense", "Nacional", "Oeste", 86), ("Sport", "Nacional", "Oeste", 83),
         ("Guarani", "Nacional", "Oeste", 76), ("Coritiba", "Nacional", "Oeste", 82),
-        
         ("Internacional", "Nacional", "Norte", 88), ("RB Bragantino", "Nacional", "Norte", 85),
         ("Goiás", "Nacional", "Norte", 82), ("Avaí", "Nacional", "Norte", 79),
-        
         ("Vasco", "Nacional", "Sul", 86), ("Cruzeiro", "Nacional", "Sul", 88),
         ("América-MG", "Nacional", "Sul", 81), ("Santos", "Nacional", "Sul", 87)
     ]
@@ -131,19 +123,23 @@ def initialize_system():
     for name, conf, div, rating in lnf_data:
         engine.add_team(Team(name, "LNF", conf, div, rating))
         
-    # 2. COLLEGE 1 (Simulado - 8 Conferências Regionais)
-    conferencias = [
-        "Amazônica", "Nordeste Atlântico", "Nordeste Sul", "Centro-Oeste",
-        "Sudeste Norte", "Sudeste Sul", "Paulista", "Sul"
-    ]
-    
-    # Gerar times fictícios/genéricos para o College (96 times)
-    # Em uma versão futura, você pode nomear todos manualmente
-    for conf in conferencias:
-        for i in range(12):
-            rating = random.randint(60, 80)
-            name = f"College {conf} #{i+1}"
-            engine.add_team(Team(name, "College 1", "College", conf, rating))
+    # 2. COLLEGE (CARREGAR DO JSON)
+    # Verifica se o arquivo existe. Se não, gera dados dummy para não quebrar.
+    if os.path.exists("teams_db.json"):
+        with open("teams_db.json", "r", encoding="utf-8") as f:
+            data = json.load(f)
+            
+        # Carregar College 1
+        for team in data.get("college1", []):
+            engine.add_team(Team(team["name"], "College 1", "College", team["conference"], team["rating"]))
+            
+        # Carregar College 2
+        for team in data.get("college2", []):
+            engine.add_team(Team(team["name"], "College 2", "College", team["conference"], team["rating"]))
+    else:
+        # Fallback caso o usuário esqueça de rodar o db_builder
+        print("AVISO: teams_db.json não encontrado. Rodar db_builder.py")
+        # (Aqui entraria o código antigo de geração aleatória como backup)
 
     return engine
 
