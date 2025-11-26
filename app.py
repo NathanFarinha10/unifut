@@ -403,6 +403,104 @@ class UniFUTEngine:
                 
         return results
 
+    def run_ncp(self):
+        """
+        Simula o National College Playoff (NCP) - Manual Seção 6
+        Formato de 12 Times:
+        - Seeds 1-4: Bye (Folgam na Rodada 1)
+        - Rodada 1: 5x12, 6x11, 7x10, 8x9
+        - Quartas: Vencedores x Seeds 1-4
+        """
+        log = []
+        
+        # 1. Selecionar os Top 12 do Ranking Nacional (College)
+        # Como critério de MVP, usamos o Rating como proxy do Ranking
+        college_teams = self.get_teams_by_league("College")
+        ranked_teams = sorted(college_teams, key=lambda x: x.rating, reverse=True)
+        top12 = ranked_teams[:12]
+        
+        # Seeds
+        seeds_1_4 = top12[:4]  # Folgam
+        seeds_5_12 = top12[4:] # Jogam Rodada 1
+        
+        log.append(f"🌟 **Top 4 (Bye nas Quartas):** {', '.join([t.name for t in seeds_1_4])}")
+        
+        # --- RODADA 1 (First Round) ---
+        # Confrontos: 5x12, 6x11, 7x10, 8x9
+        # Índice 0 é seed 5, Índice 7 é seed 12
+        matchups_r1 = [
+            (seeds_5_12[0], seeds_5_12[7]), # 5 vs 12
+            (seeds_5_12[1], seeds_5_12[6]), # 6 vs 11
+            (seeds_5_12[2], seeds_5_12[5]), # 7 vs 10
+            (seeds_5_12[3], seeds_5_12[4]), # 8 vs 9
+        ]
+        
+        winners_r1 = []
+        log.append("--- 🏁 RODADA 1 (Wild Card College) ---")
+        
+        for t1, t2 in matchups_r1:
+            g1, g2 = self.simulate_match(t1, t2, is_knockout=True)
+            winner = t1 if g1 > g2 else t2
+            winners_r1.append(winner)
+            log.append(f"Seed {top12.index(t1)+1} {t1.name} {g1} x {g2} {t2.name} Seed {top12.index(t2)+1}")
+            
+        # --- QUARTAS DE FINAL ---
+        # Vencedores da R1 enfrentam os Seeds 1-4
+        # Para simplificar o chaveamento dinâmico, vamos fazer emparelhamento direto:
+        # Seed 1 x Pior Seed Restante (no MVP, simplificamos para ordem da lista)
+        
+        # Inverter winners para que o "pior" enfrente o seed 1? 
+        # Vamos parear direto: Seed 1 x Vencedor do Jogo 8v9 (que é o matchup 3 da lista winners_r1 invertida)
+        # Matchups fixos do Bracket padrão:
+        # Q1: Seed 1 vs Vencedor (8x9)
+        # Q2: Seed 2 vs Vencedor (7x10)
+        # Q3: Seed 3 vs Vencedor (6x11)
+        # Q4: Seed 4 vs Vencedor (5x12)
+        
+        matchups_q = [
+            (seeds_1_4[0], winners_r1[3]), # 1 vs (8x9)
+            (seeds_1_4[1], winners_r1[2]), # 2 vs (7x10)
+            (seeds_1_4[2], winners_r1[1]), # 3 vs (6x11)
+            (seeds_1_4[3], winners_r1[0]), # 4 vs (5x12)
+        ]
+        
+        winners_q = []
+        log.append("--- 🥣 QUARTAS DE FINAL (Bowls Temáticos) ---")
+        
+        bowl_names = ["Heritage Bowl", "Prime Bowl", "Leadership Bowl", "New Horizons Bowl"]
+        
+        for i, (t1, t2) in enumerate(matchups_q):
+            g1, g2 = self.simulate_match(t1, t2, is_knockout=True)
+            winner = t1 if g1 > g2 else t2
+            winners_q.append(winner)
+            log.append(f"**{bowl_names[i]}**: {t1.name} {g1} x {g2} {t2.name}")
+
+        # --- SEMIFINAIS ---
+        # Q1 vs Q4 / Q2 vs Q3
+        matchups_s = [
+            (winners_q[0], winners_q[3]),
+            (winners_q[1], winners_q[2])
+        ]
+        
+        winners_s = []
+        log.append("--- 🏆 SEMIFINAIS NACIONAIS ---")
+        
+        for t1, t2 in matchups_s:
+            g1, g2 = self.simulate_match(t1, t2, is_knockout=True)
+            winner = t1 if g1 > g2 else t2
+            winners_s.append(winner)
+            log.append(f"{t1.name} {g1} x {g2} {t2.name}")
+            
+        # --- FINAL NACIONAL ---
+        log.append("--- 🎆 NATIONAL CHAMPIONSHIP GAME ---")
+        f1, f2 = winners_s[0], winners_s[1]
+        g1, g2 = self.simulate_match(f1, f2, is_knockout=True)
+        champion = f1 if g1 > g2 else f2
+        
+        log.append(f"RESULTADO FINAL: {f1.name} {g1} x {g2} {f2.name}")
+        
+        return log, champion
+
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
 @st.cache_resource
@@ -600,49 +698,51 @@ with tab_college:
 with tab_copas:
     st.header("Ecossistema de Copas & Bowls 2026")
     
-    col1, col2 = st.columns(2)
+    # Agora com 3 colunas!
+    col1, col2, col3 = st.columns(3)
     
     with col1:
         st.subheader("🏆 Copa do Brasil")
-        st.markdown("""
-        **Formato Híbrido (Manual Pág. 45):**
-        * Fases Iniciais: College e Qualification
-        * Fase 3: Entrada da LNF
-        * Fase 4: Entrada dos Seeds (Campeões/Top LNF)
-        """)
-        
+        st.caption("CBF (LNF + College + Qualy)")
         if st.button("Simular Copa do Brasil"):
             if not st.session_state.simulated_lnf:
-                st.error("Simule a LNF primeiro para definir os Seeds!")
+                st.error("Simule a LNF primeiro!")
             else:
-                with st.spinner("Simulando as 5 Fases da Copa..."):
+                with st.spinner("Processando..."):
                     log_cdb, campeao_cdb = engine.run_copa_brasil()
-                
-                st.success(f"🎉 CAMPEÃO: {campeao_cdb.name}")
-                
-                # Mostrar fases finais
-                with st.expander("Ver Resultados Completos (Fase a Fase)"):
+                st.success(f"CAMPEÃO: {campeao_cdb.name}")
+                with st.expander("Detalhes"):
                     for fase, jogos in log_cdb.items():
                         st.write(f"**{fase}**")
-                        for jogo in jogos:
-                            st.caption(jogo)
-                        st.divider()
+                        for jogo in jogos: st.text(jogo)
     
     with col2:
-        st.subheader("🥣 Bowls Regionais (College)")
-        st.markdown("""
-        Os campeões de cada Conferência Regional se enfrentam em Bowls temáticos no final do ano.
-        """)
-        
-        if st.button("Simular Bowls Regionais"):
+        st.subheader("🥣 Bowls Regionais")
+        st.caption("Campeões de Conferência")
+        if st.button("Simular Bowls"):
             bowls_res = engine.run_regional_bowls()
-            
             for bowl in bowls_res:
-                st.markdown(f"### 🏈 {bowl['Bowl']}")
-                st.write(f"*{bowl['Confronto']}*")
-                st.markdown(f"**{bowl['Placar']}**")
-                st.success(f"Campeão: {bowl['Campeão']}")
-                st.divider()
+                with st.expander(f"{bowl['Bowl']} ({bowl['Campeão']})"):
+                    st.write(f"{bowl['Confronto']}")
+                    st.write(f"Placar: {bowl['Placar']}")
+
+    with col3:
+        st.subheader("🥇 National Playoff")
+        st.caption("Top 12 College (NCP)")
+        st.markdown("O ápice da temporada universitária.")
+        
+        if st.button("Simular NCP"):
+            with st.spinner("Definindo o Campeão Nacional..."):
+                log_ncp, campeao_ncp = engine.run_ncp()
+            
+            st.balloons() # Efeito visual de festa!
+            st.success(f"CAMPEÃO NACIONAL: {campeao_ncp.name}")
+            
+            for item in log_ncp:
+                if "---" in item or "Top 4" in item:
+                    st.markdown(f"**{item}**")
+                else:
+                    st.write(item)
 
 with tab_draft:
     st.header("Draft UniFUT 2026")
