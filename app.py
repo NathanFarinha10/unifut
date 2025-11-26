@@ -15,21 +15,31 @@ st.set_page_config(page_title="UniFUT Simulação", layout="wide", page_icon="�
 class Player:
     def __init__(self, name, position, age, overall, team_name):
         self.name = name
-        self.position = position # GK, DEF, MID, ATA
+        self.position = position
         self.age = age
         self.overall = overall
         self.potential = overall + random.randint(0, 5)
         self.team_name = team_name
+        
+        # Economia
         self.market_value = self._calculate_value()
+        self.wage = self._calculate_wage() # Salário anual
 
     def _calculate_value(self):
-        # Fórmula simples de valor de mercado
-        base = self.overall * 10000
-        age_factor = (35 - self.age) / 10
-        return int(base * age_factor)
+        base = self.overall ** 3.5  # Valor exponencial
+        age_factor = 1.0
+        if self.age < 22: age_factor = 1.5
+        elif self.age > 32: age_factor = 0.6
+        return int(base * 0.5 * age_factor)
+
+    def _calculate_wage(self):
+        # Salário anual estimado (R$)
+        # Ex: Overall 80 ~ R$ 6M/ano. Overall 60 ~ R$ 300k/ano
+        base = (self.overall ** 3) * 12 
+        return int(base)
 
     def __repr__(self):
-        return f"{self.name} ({self.position}) - {self.overall}"
+        return f"{self.name} ({self.overall})"
 
 class Team:
     def __init__(self, name, league, conference, division, rating):
@@ -38,17 +48,26 @@ class Team:
         self.conference = conference
         self.division = division 
         self.rating = rating 
-        self.players = []  # <--- NOVA LISTA DE JOGADORES
+        self.players = []
         
-        # Stats
+        # --- ECONOMIA ---
+        self.budget = 0       # Caixa disponível
+        self.payroll = 0      # Folha Salarial Total
+        self.revenue = 0      # Receitas da temporada
+        self.salary_cap = 0   # Limite da liga
+        
+        # Stats Esportivos
         self.wins = 0
         self.losses = 0
         self.draws = 0
         self.points = 0
         self.goals_for = 0
         self.goals_against = 0
-        self.schedule = []
         
+    def update_financials(self):
+        # Recalcula folha salarial baseada no elenco atual
+        self.payroll = sum(p.wage for p in self.players)
+    
     def reset_stats(self):
         self.wins = 0
         self.losses = 0
@@ -56,6 +75,7 @@ class Team:
         self.points = 0
         self.goals_for = 0
         self.goals_against = 0
+        # Não resetamos dinheiro, pois acumula entre temporadas
 
     @property
     def goal_diff(self):
@@ -501,6 +521,83 @@ class UniFUTEngine:
         
         return log, champion
 
+    # --- MÉTODOS ECONÔMICOS (SPRINT 2.0) ---
+
+    def initialize_economy(self):
+        """Define orçamentos iniciais baseados no Manual (Seção 11/23)"""
+        for team in self.teams:
+            team.update_financials() # Calcular folha inicial
+            
+            if team.league == "LNF":
+                # LNF: Teto R$ 350M. Orçamento inicial robusto.
+                team.salary_cap = 350_000_000
+                team.budget = random.randint(300_000_000, 500_000_000)
+            
+            elif "College 1" in team.league:
+                # College 1: Teto R$ 40M.
+                team.salary_cap = 40_000_000
+                team.budget = random.randint(25_000_000, 45_000_000)
+            
+            else:
+                # College 2: Teto R$ 15M.
+                team.salary_cap = 15_000_000
+                team.budget = random.randint(5_000_000, 15_000_000)
+
+    def distribute_tv_rights(self):
+        """
+        Distribuição de Receitas LNF (Regra 50/25/25) - Manual Pg. 223
+        Exemplo de Pool: R$ 2.5 Bilhões
+        """
+        total_pool = 2_500_000_000
+        lnf_teams = self.get_teams_by_league("LNF")
+        
+        # 1. Cota Igualitária (50%)
+        equal_share = (total_pool * 0.50) / len(lnf_teams)
+        
+        # 2. Cota Performance (25%) - Baseada em Pontos
+        total_points = sum(t.points for t in lnf_teams)
+        perf_pot = total_pool * 0.25
+        
+        # 3. Cota Audiência/Mercado (25%) - Baseada em Rating (Proxy de torcida)
+        total_rating = sum(t.rating for t in lnf_teams)
+        audience_pot = total_pool * 0.25
+        
+        for team in lnf_teams:
+            # Calcular
+            share_perf = (team.points / total_points) * perf_pot if total_points > 0 else 0
+            share_aud = (team.rating / total_rating) * audience_pot
+            
+            total_revenue = equal_share + share_perf + share_aud
+            
+            # Aplicar
+            team.revenue += total_revenue
+            team.budget += total_revenue
+            
+            # Subtrair Folha Salarial (Custo Anual)
+            team.budget -= team.payroll
+
+    def process_draft_payment(self, lnf_team, college_team_name, round_num):
+        """
+        Transferência de dinheiro no Draft (Manual Seção 10.9)
+        """
+        # Tabela de Preços
+        prices = {
+            1: 1_000_000, 2: 600_000, 3: 350_000,
+            4: 200_000, 5: 100_000, 6: 50_000, 7: 25_000
+        }
+        fee = prices.get(round_num, 0)
+        
+        # LNF Paga
+        lnf_team.budget -= fee
+        
+        # College Recebe (busca o time pelo nome)
+        # Otimização: buscar em dicionário seria melhor, aqui varre lista (MVP)
+        for t in self.teams:
+            if t.name == college_team_name:
+                t.budget += fee
+                t.revenue += fee # Conta como receita
+                break
+
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
 @st.cache_resource
@@ -550,6 +647,8 @@ def initialize_system():
         # (Aqui entraria o código antigo de geração aleatória como backup)
     
     engine.generate_rosters()
+
+    engine.initialize_economy()
 
     return engine
 
@@ -630,7 +729,7 @@ if st.sidebar.button("Simular Temporada Regular LNF"):
     st.session_state.simulated_lnf = True
 
 # Abas Principais
-tab_lnf, tab_college, tab_copas, tab_draft = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft"])
+tab_lnf, tab_college, tab_copas, tab_draft, tab_finance = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças"])
 
 with tab_lnf:
     st.header(f"Liga Nacional de Futebol - {season_year}")
@@ -786,7 +885,8 @@ with tab_draft:
                 for team in draft_order:
                     # Time pega o melhor jogador disponível
                     pick = all_prospects[prospect_index]
-                    
+
+                    engine.process_draft_payment(team, pick.team_name, round_num)
                     # Transferência Lógica
                     # Remover do time antigo (College) e adicionar no novo (LNF) - Simplificado
                     pick.team_name = team.name # Atualiza a camisa
@@ -808,3 +908,45 @@ with tab_draft:
             
     else:
         st.warning("⚠️ Você precisa simular a Temporada Regular da LNF primeiro para definir a ordem das escolhas.")
+
+with tab_finance:
+    st.header("Painel Financeiro & Fair Play")
+    
+    # Métricas Gerais
+    lnf_teams = engine.get_teams_by_league("LNF")
+    avg_payroll = np.mean([t.payroll for t in lnf_teams])
+    
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Teto Salarial LNF", "R$ 350.0M")
+    m2.metric("Média de Folha LNF", f"R$ {avg_payroll/1e6:.1f}M")
+    m3.metric("Pool de TV Estimado", "R$ 2.5B")
+    
+    st.divider()
+    
+    # Tabela Financeira LNF
+    st.subheader("Saúde Financeira - LNF")
+    fin_data = []
+    for t in lnf_teams:
+        cap_usage = (t.payroll / t.salary_cap) * 100
+        status = "🟢 OK" if cap_usage <= 100 else "🔴 Multa"
+        
+        fin_data.append({
+            "Time": t.name,
+            "Orçamento (Caixa)": f"R$ {t.budget/1e6:.1f}M",
+            "Folha Anual": f"R$ {t.payroll/1e6:.1f}M",
+            "Uso do Cap": f"{cap_usage:.1f}%",
+            "Status": status,
+            "Receitas TV/Prêmios": f"R$ {t.revenue/1e6:.1f}M"
+        })
+    
+    df_fin = pd.DataFrame(fin_data).sort_values("Uso do Cap", ascending=False)
+    st.dataframe(df_fin, use_container_width=True)
+    
+    # Botão para Distribuir Dinheiro (Pós-Temporada)
+    if st.button("💰 Processar Pagamentos de TV e Prêmios (Final de Temporada)"):
+        if not st.session_state.simulated_lnf:
+            st.error("Simule a temporada primeiro para calcular as cotas de performance!")
+        else:
+            engine.distribute_tv_rights()
+            st.success("Receitas distribuídas! Confira a coluna 'Receitas' atualizada na tabela acima.")
+            st.balloons()
