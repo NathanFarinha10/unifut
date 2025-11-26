@@ -269,36 +269,40 @@ def initialize_system():
 
 def run_lnf_regular_season(engine):
     lnf_teams = engine.get_teams_by_league("LNF")
-    # Resetar
+    
+    # 1. Resetar status
     for t in lnf_teams: t.reset_stats()
     
-    # Simulação Simplificada de 19 jogos
-    # Para ser rápido, vamos simular confrontos baseados na lógica de força
-    progress_bar = st.progress(0)
-    total_games = len(lnf_teams) * 19 // 2
-    games_played = 0
+    # 2. Gerar Calendário Oficial (19 jogos)
+    st.toast("Gerando calendário oficial de 19 jogos...")
+    scheduler = LNFScheduler(lnf_teams, engine.season_year)
+    schedule = scheduler.generate_schedule()
     
-    for team in lnf_teams:
-        # Encontrar oponentes (Lógica simplificada para demo)
-        # Na versão final, implementar a lógica exata de rodízio do PDF
-        opponents = random.sample([t for t in lnf_teams if t != team], 19)
+    # 3. Simular Partidas
+    progress_bar = st.progress(0)
+    total_games = len(schedule)
+    
+    for i, (home, away, match_type) in enumerate(schedule):
+        # Simulação
+        g_h, g_a = engine.simulate_match(home, away)
         
-        for opp in opponents:
-            # Evitar duplicidade de processamento (A x B e B x A)
-            # Aqui, apenas processamos o resultado para a tabela
-            g_a, g_b = engine.simulate_match(team, opp)
-            team.goals_for += g_a
-            team.goals_against += g_b
-            if g_a > g_b:
-                team.wins += 1
-                team.points += 3
-            elif g_b > g_a:
-                team.losses += 1
-            else:
-                team.draws += 1
-                team.points += 1
-                
-    st.toast("Temporada Regular LNF Concluída!")
+        # Atualizar tabela
+        engine.update_table(home, away, g_h, g_a)
+        
+        # Atualizar barra de progresso
+        if i % 10 == 0:
+            progress_bar.progress((i + 1) / total_games)
+            
+    progress_bar.progress(100)
+    st.toast("Temporada Regular LNF (19 Rodadas) Concluída!", icon="✅")
+    
+    # Debug: Verificar se todos jogaram 19 jogos
+    # (Opcional - pode remover na versão final)
+    with st.expander("Auditoria de Calendário (Debug)"):
+        for t in lnf_teams:
+            if t.games_played != 19:
+                st.error(f"ERRO: {t.name} jogou {t.games_played} vezes!")
+        st.write(f"Total de jogos processados: {total_games}")
 
 def get_standings_df(teams):
     data = []
