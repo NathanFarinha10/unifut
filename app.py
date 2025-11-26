@@ -61,9 +61,18 @@ class Player:
         self.potential = overall + random.randint(0, 5)
         self.team_name = team_name
         
-        # Economia e Stats
+        # Economia
         self.market_value = self._calculate_value()
         self.wage = self._calculate_wage()
+        
+        # --- NOVO: CONTRATO (Anos restantes) ---
+        # LNF: contratos longos (3-5 anos). College: curtos (1-3 anos).
+        if "College" in team_name or "College" in str(team_name): # Simplificação
+             self.contract_years = random.randint(1, 3)
+        else:
+             self.contract_years = random.randint(2, 5)
+
+        # Stats
         self.goals = 0
         self.assists = 0
         self.matches = 0
@@ -78,17 +87,14 @@ class Player:
         return int((self.overall ** 3) * 12)
     
     def reset_season_stats(self):
-        self.goals = 0
-        self.assists = 0
-        self.matches = 0
-        self.mvp_points = 0
+        self.goals = 0; self.assists = 0; self.matches = 0; self.mvp_points = 0
 
-    # --- SERIALIZAÇÃO ---
+    # Serialização Atualizada
     def to_dict(self):
         return {
             "name": self.name, "position": self.position, "age": self.age,
             "overall": self.overall, "potential": self.potential, "team_name": self.team_name,
-            "goals": self.goals, "matches": self.matches
+            "goals": self.goals, "matches": self.matches, "contract_years": self.contract_years
         }
 
     @classmethod
@@ -97,6 +103,7 @@ class Player:
         p.potential = data.get("potential", p.overall)
         p.goals = data.get("goals", 0)
         p.matches = data.get("matches", 0)
+        p.contract_years = data.get("contract_years", 1)
         return p
 
 class Team:
