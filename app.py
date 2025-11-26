@@ -60,28 +60,22 @@ class Player:
         self.overall = overall
         self.potential = overall + random.randint(0, 5)
         self.team_name = team_name
-        self.history = []
         
-        # Economia
+        # Economia e Stats
         self.market_value = self._calculate_value()
         self.wage = self._calculate_wage()
-        
-        # --- ESTATÍSTICAS (SPRINT 4.0) ---
         self.goals = 0
         self.assists = 0
         self.matches = 0
-        self.mvp_points = 0 # Acumulado para prêmios
+        self.mvp_points = 0
 
     def _calculate_value(self):
         base = self.overall ** 3.5
-        age_factor = 1.0
-        if self.age < 22: age_factor = 1.5
-        elif self.age > 32: age_factor = 0.6
+        age_factor = 1.0 if 22 <= self.age <= 32 else (1.5 if self.age < 22 else 0.6)
         return int(base * 0.5 * age_factor)
 
     def _calculate_wage(self):
-        base = (self.overall ** 3) * 12 
-        return int(base)
+        return int((self.overall ** 3) * 12)
     
     def reset_season_stats(self):
         self.goals = 0
@@ -89,8 +83,21 @@ class Player:
         self.matches = 0
         self.mvp_points = 0
 
-    def __repr__(self):
-        return f"{self.name} ({self.overall})"
+    # --- SERIALIZAÇÃO ---
+    def to_dict(self):
+        return {
+            "name": self.name, "position": self.position, "age": self.age,
+            "overall": self.overall, "potential": self.potential, "team_name": self.team_name,
+            "goals": self.goals, "matches": self.matches
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        p = cls(data["name"], data["position"], data["age"], data["overall"], data["team_name"])
+        p.potential = data.get("potential", p.overall)
+        p.goals = data.get("goals", 0)
+        p.matches = data.get("matches", 0)
+        return p
 
 class Team:
     def __init__(self, name, league, conference, division, rating):
@@ -102,19 +109,51 @@ class Team:
         self.players = []
         self.logo = LOGO_URLS.get(name, GENERIC_LOGO)
         
-        # --- ECONOMIA ---
-        self.budget = 0       # Caixa disponível
-        self.payroll = 0      # Folha Salarial Total
-        self.revenue = 0      # Receitas da temporada
-        self.salary_cap = 0   # Limite da liga
+        # Economia
+        self.budget = 0
+        self.payroll = 0
+        self.revenue = 0
+        self.salary_cap = 0
         
-        # Stats Esportivos
+        # Stats
         self.wins = 0
         self.losses = 0
         self.draws = 0
         self.points = 0
         self.goals_for = 0
         self.goals_against = 0
+        
+    def update_financials(self):
+        self.payroll = sum(p.wage for p in self.players)
+    
+    def reset_stats(self):
+        self.wins = 0; self.losses = 0; self.draws = 0; self.points = 0
+        self.goals_for = 0; self.goals_against = 0
+
+    @property
+    def goal_diff(self): return self.goals_for - self.goals_against
+    @property
+    def games_played(self): return self.wins + self.losses + self.draws
+
+    # --- SERIALIZAÇÃO ---
+    def to_dict(self):
+        return {
+            "name": self.name, "league": self.league, "conference": self.conference,
+            "division": self.division, "rating": self.rating,
+            "budget": self.budget, "salary_cap": self.salary_cap,
+            "revenue": self.revenue,
+            "players": [p.to_dict() for p in self.players]
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        t = cls(data["name"], data["league"], data["conference"], data["division"], data["rating"])
+        t.budget = data.get("budget", 0)
+        t.salary_cap = data.get("salary_cap", 0)
+        t.revenue = data.get("revenue", 0)
+        t.players = [Player.from_dict(p_data) for p_data in data.get("players", [])]
+        t.update_financials()
+        return t
         
     def update_financials(self):
         # Recalcula folha salarial baseada no elenco atual
@@ -754,6 +793,33 @@ class UniFUTEngine:
         if not all_players: return None
         return sorted(all_players, key=lambda x: x.goals, reverse=True)[0]
 
+    # ... (Métodos anteriores da engine continuam iguais) ...
+
+    # --- MÉTODOS DE SAVE/LOAD (SPRINT 5.0) ---
+    def to_json(self):
+        """Exporta o estado completo do jogo para um dicionário JSON"""
+        return json.dumps({
+            "season_year": self.season_year,
+            "history": self.history,
+            "teams": [t.to_dict() for t in self.teams]
+        }, indent=4)
+
+    @classmethod
+    def load_from_json(cls, json_str):
+        """Reconstroi a Engine a partir de uma string JSON"""
+        data = json.loads(json_str)
+        
+        new_engine = cls()
+        new_engine.season_year = data["season_year"]
+        new_engine.history = data.get("history", [])
+        
+        # Reconstruir times e jogadores
+        new_engine.teams = []
+        for t_data in data["teams"]:
+            new_engine.add_team(Team.from_dict(t_data))
+            
+        return new_engine
+
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
 @st.cache_resource
@@ -880,11 +946,47 @@ if not hasattr(engine, 'history'):
 
 # Sidebar
 st.sidebar.header("Controle de Simulação")
+# --- SIDEBAR: SISTEMA DE ARQUIVOS ---
+st.sidebar.header("💾 Sistema")
+
+# 1. Botão de Download (Salvar)
+# Prepara o arquivo na memória
+save_data = engine.to_json()
+st.sidebar.download_button(
+    label="📥 Salvar Jogo (Download .json)",
+    data=save_data,
+    file_name=f"save_unifut_{engine.season_year}.json",
+    mime="application/json",
+    help="Baixe o arquivo para continuar depois."
+)
+
+# 2. Botão de Upload (Carregar)
+uploaded_file = st.sidebar.file_uploader("📤 Carregar Jogo", type=["json"])
+
+if uploaded_file is not None:
+    try:
+        # Ler o arquivo
+        json_str = uploaded_file.getvalue().decode("utf-8")
+        
+        # Botão de confirmação para não carregar acidentalmente
+        if st.sidebar.button("Confirmar Carregamento"):
+            # Recriar a engine com os dados do arquivo
+            st.session_state.engine = UniFUTEngine.load_from_json(json_str)
+            st.session_state.simulated_lnf = False # Resetar estado da UI
+            st.success("Jogo carregado com sucesso! A página irá recarregar.")
+            st.rerun()
+            
+    except Exception as e:
+        st.sidebar.error(f"Erro ao carregar arquivo: {e}")
+
+st.sidebar.divider()
+# ... (continua o resto da sidebar original) ...
 season_year = st.sidebar.number_input("Ano da Temporada", value=2026)
 
 if st.sidebar.button("Simular Temporada Regular LNF"):
     run_lnf_regular_season(engine)
     st.session_state.simulated_lnf = True
+
 
 # Abas Principais
 tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes", "Histórico"])
