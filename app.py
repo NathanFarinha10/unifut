@@ -875,6 +875,9 @@ if "engine" not in st.session_state:
 
 engine = st.session_state.engine
 
+if not hasattr(engine, 'history'):
+    engine.history = []
+
 # Sidebar
 st.sidebar.header("Controle de Simulação")
 season_year = st.sidebar.number_input("Ano da Temporada", value=2026)
