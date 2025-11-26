@@ -321,6 +321,8 @@ def initialize_system():
         # Fallback caso o usuário esqueça de rodar o db_builder
         print("AVISO: teams_db.json não encontrado. Rodar db_builder.py")
         # (Aqui entraria o código antigo de geração aleatória como backup)
+    
+    engine.generate_rosters()
 
     return engine
 
@@ -481,17 +483,66 @@ with tab_copas:
         st.write("*Mata-mata em jogo único com mando do menor.*")
 
 with tab_draft:
-    st.header("Draft UniFUT")
-    st.write("Ordem de escolha baseada na campanha inversa da LNF.")
-    st.write("Jogadores elegíveis do College (mínimo 2 anos de sistema).")
+    st.header("Draft UniFUT 2026")
+    st.markdown("""
+    O Draft ocorre em **7 Rodadas**. A ordem é inversa à classificação da LNF.
+    Os jogadores são selecionados do sistema **College** (College 1 e 2).
+    """)
     
     if st.session_state.simulated_lnf:
+        # 1. Definir Ordem do Draft (Pior -> Melhor campanha LNF)
         lnf_teams = engine.get_teams_by_league("LNF")
-        # Ordenar reverso por pontos (Pior primeiro)
-        draft_order = sorted(lnf_teams, key=lambda x: x.points)
+        # Critério: Menos pontos primeiro. Desempate: Menor saldo.
+        draft_order = sorted(lnf_teams, key=lambda x: (x.points, x.goal_diff))
         
-        st.subheader("Ordem do Draft - Top 10 Picks")
-        for i, team in enumerate(draft_order[:10]):
-            st.text(f"Pick #{i+1}: {team.name}")
+        # 2. Listar Prospectos (Jogadores do College)
+        college_teams = engine.get_teams_by_league("College")
+        all_prospects = []
+        for t in college_teams:
+            all_prospects.extend(t.players)
+        
+        # Ordenar prospectos por Overall (Melhores disponíveis)
+        all_prospects.sort(key=lambda x: x.overall, reverse=True)
+        
+        # UI: Mostrar Top Prospectos
+        st.subheader("Top 5 Prospectos Disponíveis (Big Board)")
+        top_prospects = all_prospects[:5]
+        df_prospects = pd.DataFrame([{
+            "Nome": p.name, "Pos": p.position, 
+            "Idade": p.age, "Overall": p.overall, 
+            "Origem": p.team_name
+        } for p in top_prospects])
+        st.table(df_prospects)
+        
+        # Botão para Realizar o Draft
+        if st.button("Realizar Draft Completo (7 Rodadas)"):
+            draft_results = []
+            
+            # Simulação do Draft
+            prospect_index = 0
+            for round_num in range(1, 8):
+                for team in draft_order:
+                    # Time pega o melhor jogador disponível
+                    pick = all_prospects[prospect_index]
+                    
+                    # Transferência Lógica
+                    # Remover do time antigo (College) e adicionar no novo (LNF) - Simplificado
+                    pick.team_name = team.name # Atualiza a camisa
+                    team.players.append(pick)
+                    
+                    draft_results.append({
+                        "Rodada": round_num,
+                        "Time LNF": team.name,
+                        "Jogador Escolhido": pick.name,
+                        "Pos": pick.position,
+                        "Overall": pick.overall,
+                        "Veio de": all_prospects[prospect_index].team_name # Hack para mostrar origem antiga
+                    })
+                    
+                    prospect_index += 1
+            
+            st.success("Draft Concluído com Sucesso!")
+            st.dataframe(pd.DataFrame(draft_results), height=500)
+            
     else:
-        st.warning("Simule a temporada da LNF para definir a ordem do Draft.")
+        st.warning("⚠️ Você precisa simular a Temporada Regular da LNF primeiro para definir a ordem das escolhas.")
