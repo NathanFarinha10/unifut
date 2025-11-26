@@ -827,6 +827,139 @@ class UniFUTEngine:
             
         return new_engine
 
+    # --- AI GM & MERCADO (SPRINT 6.0) ---
+
+    def run_transfer_window(self):
+        """
+        Simula uma Janela de Transferências completa.
+        1. Renovações de contrato.
+        2. Free Agency (Sem contrato).
+        3. Compras e Vendas entre clubes.
+        """
+        transfer_log = []
+        
+        # 1. Processar Contratos (Fim de ano)
+        free_agents = []
+        for t in self.teams:
+            new_roster = []
+            for p in t.players:
+                p.contract_years -= 1
+                if p.contract_years <= 0:
+                    # Tenta renovar? (Simplificação: Se titular e time tem dinheiro, renova)
+                    cost_renew = p.wage * 1.2 # Aumento salarial
+                    if t.budget > cost_renew * 2 and p.overall > (t.rating - 5):
+                        p.contract_years = random.randint(2, 4)
+                        p.wage = int(cost_renew)
+                        new_roster.append(p)
+                    else:
+                        # Dispensa (Vira Free Agent)
+                        p.team_name = "Free Agent"
+                        free_agents.append(p)
+                else:
+                    new_roster.append(p)
+            t.players = new_roster
+
+        # 2. Mercado Ativo (LNF comprando)
+        lnf_teams = self.get_teams_by_league("LNF")
+        random.shuffle(lnf_teams) # Ordem aleatória de negociação
+        
+        for buyer in lnf_teams:
+            # Lógica do GM: Onde sou fraco?
+            # Analisar média por posição
+            weakest_pos = self._analyze_weakness(buyer)
+            if not weakest_pos: continue
+            
+            # Definir Orçamento para Transferência (30% do caixa atual)
+            budget_avail = buyer.budget * 0.30
+            
+            # Buscar Alvo no Mercado (College ou LNF)
+            target = self._scout_player(weakest_pos, buyer.rating, budget_avail)
+            
+            if target:
+                # Executar Transferência
+                seller = self._find_team_by_name(target.team_name)
+                if seller:
+                    transfer_value = int(target.market_value * 1.2) # Ágio de mercado
+                    
+                    # Transação
+                    if buyer.budget >= transfer_value:
+                        # Pagar
+                        buyer.budget -= transfer_value
+                        seller.budget += transfer_value
+                        seller.revenue += transfer_value # Receita pro vendedor
+                        
+                        # Mover Jogador
+                        seller.players.remove(target)
+                        target.team_name = buyer.name
+                        target.contract_years = random.randint(3, 5)
+                        target.wage = int(target.wage * 1.5) # Aumento pro jogador ir
+                        buyer.players.append(target)
+                        
+                        # Log
+                        transfer_log.append({
+                            "Comprador": buyer.name,
+                            "Vendedor": seller.name,
+                            "Jogador": f"{target.name} ({target.position} {target.overall})",
+                            "Valor": f"R$ {transfer_value/1e6:.1f}M"
+                        })
+
+        # 3. Assinar Free Agents (Times preenchem buracos de graça)
+        for fa in free_agents:
+            # Tenta achar um time qualquer que aceite
+            potential_teams = random.sample(self.teams, 5)
+            for t in potential_teams:
+                if len(t.players) < 28: # Limite de elenco
+                    fa.team_name = t.name
+                    fa.contract_years = 2
+                    t.players.append(fa)
+                    break # Achou casa
+
+        return transfer_log
+
+    def _analyze_weakness(self, team):
+        """Retorna a posição onde o time tem a pior média de titulares"""
+        positions = {"GK": [], "DEF": [], "MID": [], "ATA": []}
+        for p in team.players:
+            positions[p.position].append(p.overall)
+        
+        # Calcular médias dos titulares (Top 1 GK, Top 4 DEF, etc)
+        avgs = {}
+        if positions["GK"]: avgs["GK"] = max(positions["GK"])
+        else: avgs["GK"] = 0
+        
+        if len(positions["DEF"]) >= 4: avgs["DEF"] = np.mean(sorted(positions["DEF"], reverse=True)[:4])
+        else: avgs["DEF"] = 0
+        
+        if len(positions["MID"]) >= 3: avgs["MID"] = np.mean(sorted(positions["MID"], reverse=True)[:3])
+        else: avgs["MID"] = 0
+        
+        if len(positions["ATA"]) >= 3: avgs["ATA"] = np.mean(sorted(positions["ATA"], reverse=True)[:3])
+        else: avgs["ATA"] = 0
+        
+        # Retorna a chave com menor valor
+        return min(avgs, key=avgs.get)
+
+    def _scout_player(self, position, min_rating, max_price):
+        """Procura um jogador no universo que seja melhor que o time atual e caiba no bolso"""
+        candidates = []
+        # Otimização: Olhar apenas 20 times aleatórios para não travar o loop
+        scouted_teams = random.sample(self.teams, 20)
+        
+        for t in scouted_teams:
+            for p in t.players:
+                if p.position == position and p.overall > min_rating and p.market_value <= max_price:
+                    candidates.append(p)
+        
+        if candidates:
+            # Retorna o melhor candidato encontrado
+            return sorted(candidates, key=lambda x: x.overall, reverse=True)[0]
+        return None
+
+    def _find_team_by_name(self, name):
+        for t in self.teams:
+            if t.name == name: return t
+        return None
+
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
 @st.cache_resource
@@ -996,7 +1129,7 @@ if st.sidebar.button("Simular Temporada Regular LNF"):
 
 
 # Abas Principais
-tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes", "Histórico"])
+tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history, tab_market = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes", "Histórico", "Mercado"])
 
 with tab_lnf:
     st.header(f"Liga Nacional de Futebol - {season_year}")
@@ -1326,3 +1459,25 @@ with tab_history:
         st.session_state.simulated_lnf = False
         st.success(msg)
         st.balloons()
+
+with tab_market:
+    st.header("Mercado da Bola 🔁")
+    st.markdown("Acompanhe as movimentações financeiras, contratações e o fluxo de atletas.")
+    
+    if st.button("💰 Abrir Janela de Transferências (Simular Negociações)"):
+        if not st.session_state.simulated_lnf:
+            st.warning("Recomendado simular a temporada antes para que os times tenham receitas.")
+        
+        with st.spinner("Negociando contratos... GM IA trabalhando..."):
+            transfers = engine.run_transfer_window()
+        
+        if transfers:
+            st.success(f"Janela Fechada! {len(transfers)} negociações realizadas.")
+            
+            # Exibir as Top 10 mais caras
+            # Ordenar por valor (string parsing simples ou armazenar valor cru no log seria melhor, mas ok)
+            st.subheader("🔥 Principais Transferências")
+            df_transfers = pd.DataFrame(transfers)
+            st.dataframe(df_transfers, use_container_width=True)
+        else:
+            st.info("O mercado estava morno. Nenhuma grande negociação ocorreu (talvez falta de orçamento?).")
