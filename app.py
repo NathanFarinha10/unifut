@@ -42,6 +42,126 @@ class Team:
     def games_played(self):
         return self.wins + self.losses + self.draws
 
+class LNFScheduler:
+    def __init__(self, teams, year):
+        self.teams = teams
+        self.year = year
+        # Mapear estrutura: Conf -> Div -> Lista de Times (ordenados por Seed/Rating)
+        self.structure = self._build_structure()
+
+    def _build_structure(self):
+        struct = {}
+        for t in self.teams:
+            if t.conference not in struct: struct[t.conference] = {}
+            if t.division not in struct[t.conference]: struct[t.conference][t.division] = []
+            struct[t.conference][t.division].append(t)
+        
+        # Ordenar cada divisão por Rating (simulando seed do ano anterior)
+        for conf in struct:
+            for div in struct[conf]:
+                struct[conf][div].sort(key=lambda x: x.rating, reverse=True)
+        return struct
+
+    def generate_schedule(self):
+        schedule = [] # Lista de tuplas (Home, Away, Tipo)
+        
+        confs = list(self.structure.keys()) # ['Brasileira', 'Nacional']
+        divs_order = ["Leste", "Oeste", "Norte", "Sul"] # Ordem padrão para rodízio
+        
+        # Lógica de Rodízio baseada no ano (Cyclic)
+        # Ex: Ano 0 -> Leste x Oeste. Ano 1 -> Leste x Norte...
+        rotation_offset = self.year % 3 
+        
+        for conf in confs:
+            for div_name in divs_order:
+                my_div_teams = self.structure[conf][div_name]
+                
+                # --- 1. JOGOS DIVISIONAIS (6 Jogos) ---
+                # Ida e volta contra todos da mesma divisão
+                for i in range(len(my_div_teams)):
+                    for j in range(i + 1, len(my_div_teams)):
+                        t1, t2 = my_div_teams[i], my_div_teams[j]
+                        schedule.append((t1, t2, "Divisional"))
+                        schedule.append((t2, t1, "Divisional"))
+
+                # Definir Oponentes de Rodízio
+                # Lógica simplificada: Divisões mapeadas por índice 0..3
+                idx = divs_order.index(div_name)
+                
+                # Alvo Intra-Conferência (Rodízio)
+                # Ex: 0 enfrenta 1, 2 enfrenta 3... rotacionando com o ano
+                intra_target_idx = (idx + 1 + rotation_offset) % 4
+                intra_target_div = divs_order[intra_target_idx]
+                intra_opponents = self.structure[conf][intra_target_div]
+                
+                # Alvo Inter-Conferência (Rodízio)
+                other_conf = [c for c in confs if c != conf][0]
+                inter_target_idx = (idx + rotation_offset) % 4
+                inter_target_div = divs_order[inter_target_idx]
+                inter_opponents = self.structure[other_conf][inter_target_div]
+
+                # Iterar sobre meu time (t1) e gerar jogos contra as divisões alvo
+                for i, t1 in enumerate(my_div_teams):
+                    # Seed do t1 (0 a 3)
+                    seed_t1 = i 
+                    
+                    # --- 2. INTRA-CONFERÊNCIA RODÍZIO (4 Jogos) ---
+                    # Enfrenta toda a divisão alvo (Single game)
+                    for t2 in intra_opponents:
+                        # Mando aleatório para balancear
+                        if random.choice([True, False]): schedule.append((t1, t2, "Intra-Rot"))
+                        else: schedule.append((t2, t1, "Intra-Rot"))
+
+                    # --- 3. INTER-CONFERÊNCIA RODÍZIO (4 Jogos) ---
+                    # Enfrenta toda a divisão alvo da outra conf (Single game)
+                    for t2 in inter_opponents:
+                        if random.choice([True, False]): schedule.append((t1, t2, "Inter-Rot"))
+                        else: schedule.append((t2, t1, "Inter-Rot"))
+                        
+                    # --- JOGOS POR POSIÇÃO (Seeds iguais se enfrentam) ---
+                    
+                    # Divisões que SOBRARAM na minha conferência (não é a minha, nem a do rodízio)
+                    remaining_intra_divs = [d for d in divs_order if d != div_name and d != intra_target_div]
+                    
+                    # --- 4. INTRA-POSIÇÃO (2 Jogos) ---
+                    for rem_div in remaining_intra_divs:
+                        # Pega o time de MESMO SEED na divisão restante
+                        rival = self.structure[conf][rem_div][seed_t1]
+                        if random.choice([True, False]): schedule.append((t1, rival, "Intra-Pos"))
+                        else: schedule.append((rival, t1, "Intra-Pos"))
+                    
+                    # Divisões que SOBRARAM na outra conferência
+                    remaining_inter_divs = [d for d in divs_order if d != inter_target_div]
+                    
+                    # --- 5. INTER-POSIÇÃO (3 Jogos) ---
+                    for rem_div in remaining_inter_divs:
+                        rival = self.structure[other_conf][rem_div][seed_t1]
+                        if random.choice([True, False]): schedule.append((t1, rival, "Inter-Pos"))
+                        else: schedule.append((rival, t1, "Inter-Pos"))
+
+        # Limpeza: Como iteramos por divisão, jogos "Single Game" (Intra/Inter) podem ser gerados duplicados
+        # (A gera contra B, depois B gera contra A). Vamos remover duplicatas.
+        unique_schedule = []
+        seen_matchups = set()
+        
+        for h, a, type_ in schedule:
+            # ID único do jogo independente do mando
+            match_id = tuple(sorted([h.name, a.name])) 
+            
+            if type_ == "Divisional":
+                # Divisional é ida e volta, permitimos 2 ocorrências do match_id
+                # Mas precisamos garantir Home/Away. O loop acima já gera H/A e A/H explicitamente.
+                # Apenas adicionamos.
+                 unique_schedule.append((h, a, type_))
+                 
+            else:
+                # Jogos de rodízio/posição são turno único
+                if match_id not in seen_matchups:
+                    seen_matchups.add(match_id)
+                    unique_schedule.append((h, a, type_))
+        
+        return unique_schedule
+
 class UniFUTEngine:
     def __init__(self):
         self.teams = []
