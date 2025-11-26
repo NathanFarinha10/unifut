@@ -60,23 +60,34 @@ class Player:
         self.overall = overall
         self.potential = overall + random.randint(0, 5)
         self.team_name = team_name
+        self.history = []
         
         # Economia
         self.market_value = self._calculate_value()
-        self.wage = self._calculate_wage() # Salário anual
+        self.wage = self._calculate_wage()
+        
+        # --- ESTATÍSTICAS (SPRINT 4.0) ---
+        self.goals = 0
+        self.assists = 0
+        self.matches = 0
+        self.mvp_points = 0 # Acumulado para prêmios
 
     def _calculate_value(self):
-        base = self.overall ** 3.5  # Valor exponencial
+        base = self.overall ** 3.5
         age_factor = 1.0
         if self.age < 22: age_factor = 1.5
         elif self.age > 32: age_factor = 0.6
         return int(base * 0.5 * age_factor)
 
     def _calculate_wage(self):
-        # Salário anual estimado (R$)
-        # Ex: Overall 80 ~ R$ 6M/ano. Overall 60 ~ R$ 300k/ano
         base = (self.overall ** 3) * 12 
         return int(base)
+    
+    def reset_season_stats(self):
+        self.goals = 0
+        self.assists = 0
+        self.matches = 0
+        self.mvp_points = 0
 
     def __repr__(self):
         return f"{self.name} ({self.overall})"
@@ -273,51 +284,60 @@ class UniFUTEngine:
         
         match_events = []
         
+        # --- ATRIBUIÇÃO DE GOLS E STATS ---
+        scorers_a = self._assign_goals(team_a, goals_a)
+        scorers_b = self._assign_goals(team_b, goals_b)
+        
+        # Registrar estatísticas nos jogadores
+        for p in scorers_a: p.goals += 1
+        for p in scorers_b: p.goals += 1
+        
+        # Incrementar partidas jogadas (titulares fictícios)
+        # Simplificação: Todos do elenco ganham +1 jogo? Não, vamos pegar 11 aleatórios
+        for t in [team_a, team_b]:
+            starters = random.sample(t.players, min(11, len(t.players)))
+            for p in starters: p.matches += 1
+
+        # NARRATIVA (Atualizada com nomes dos artilheiros)
         if return_events:
-            match_events.append(f"📢 INÍCIO DE JOGO! {team_a.name} recebe o {team_b.name}.")
-            match_events.append(f"🏟️ Estádio lotado para este confronto da {team_a.league}.")
+            match_events.append(f"📢 INÍCIO: {team_a.name} vs {team_b.name}")
             
-            # Gerar minutos dos gols
-            minutes_a = sorted([random.randint(1, 90) for _ in range(goals_a)])
-            minutes_b = sorted([random.randint(1, 90) for _ in range(goals_b)])
+            # Misturar gols de A e B para cronologia
+            timeline = []
+            for p in scorers_a: timeline.append((random.randint(1,90), team_a.name, p.name))
+            for p in scorers_b: timeline.append((random.randint(1,90), team_b.name, p.name))
+            timeline.sort(key=lambda x: x[0])
             
-            all_goals = [(m, team_a.name, "⚽ GOL!") for m in minutes_a] + \
-                        [(m, team_b.name, "⚽ GOL!") for m in minutes_b]
-            all_goals.sort(key=lambda x: x[0])
-            
-            # Simular narrativa cronológica
             current_time = 0
-            for m, team, event in all_goals:
-                # Adicionar eventos de "quase" ou cartões entre os gols
-                while current_time < m - 10:
-                    current_time += random.randint(10, 20)
-                    if current_time < m:
-                        event_type = random.choice([
-                            "Cartão Amarelo 🟨", "Grande defesa do goleiro! 🧤", 
-                            "Bola na trave! 🥅", "Falta perigosa... pra fora."
-                        ])
-                        rand_team = random.choice([team_a.name, team_b.name])
-                        match_events.append(f"{current_time}' - {event_type} ({rand_team})")
-                
-                match_events.append(f"**{m}' - {event} ({team})**")
-                current_time = m
+            for m, team_name, player_name in timeline:
+                match_events.append(f"⚽ **{m}' GOL do {team_name}!** Marcou: {player_name}")
             
-            match_events.append(f"⏱️ FIM DE JOGO! Placar final: {team_a.name} {goals_a} x {goals_b} {team_b.name}")
+            match_events.append(f"⏱️ FIM: {team_a.name} {goals_a} x {goals_b} {team_b.name}")
 
         if is_knockout and goals_a == goals_b:
-            if return_events: match_events.append("⚖️ Empate! Vamos para os Pênaltis...")
             winner = random.choice([team_a, team_b])
-            if winner == team_a: 
-                goals_a += 1 # Tiebreaker técnico
-                if return_events: match_events.append(f"✅ {team_a.name} vence nos pênaltis!")
-            else: 
-                goals_b += 1
-                if return_events: match_events.append(f"✅ {team_b.name} vence nos pênaltis!")
+            if winner == team_a: goals_a += 1
+            else: goals_b += 1
+            if return_events: match_events.append(f"✅ {winner.name} vence na prorrogação/pênaltis!")
             
-        if return_events:
-            return goals_a, goals_b, match_events
+        if return_events: return goals_a, goals_b, match_events
         return goals_a, goals_b
 
+    def _assign_goals(self, team, num_goals):
+        """Retorna lista de objetos Player que fizeram os gols"""
+        if num_goals == 0 or not team.players: return []
+        
+        # Pesos por posição: ATA(10), MID(3), DEF(1), GK(0.1)
+        weights = []
+        for p in team.players:
+            if p.position == "ATA": w = 10
+            elif p.position == "MID": w = 3
+            elif p.position == "DEF": w = 1
+            else: w = 0.1
+            weights.append(w)
+            
+        return random.choices(team.players, weights=weights, k=num_goals)
+    
     def update_table(self, team_a, team_b, goals_a, goals_b):
         team_a.goals_for += goals_a
         team_a.goals_against += goals_b
@@ -673,6 +693,67 @@ class UniFUTEngine:
                 t.revenue += fee # Conta como receita
                 break
 
+    def advance_season(self, champion_lnf, champion_ncp):
+        """
+        Realiza a virada de ano:
+        1. Salva histórico
+        2. Envelhece jogadores
+        3. Aposenta veteranos e cria Regens
+        4. Reseta tabelas
+        """
+        # 1. Salvar Histórico
+        top_scorer_lnf = self.get_top_scorer("LNF")
+        mvp = top_scorer_lnf # Simplificação MVP = Artilheiro
+        
+        self.history.append({
+            "Ano": self.season_year,
+            "LNF Campeão": champion_lnf.name,
+            "College Campeão": champion_ncp.name,
+            "Artilheiro LNF": f"{top_scorer_lnf.name} ({top_scorer_lnf.goals} gols)",
+            "MVP": mvp.name
+        })
+        
+        # 2. Ciclo de Vida dos Atletas
+        retired_count = 0
+        new_rookies = 0
+        
+        for team in self.teams:
+            new_roster = []
+            for p in team.players:
+                p.age += 1
+                p.reset_season_stats() # Zera gols para o novo ano
+                
+                # Chance de Aposentadoria (Alta após 34 anos)
+                chance_retire = (p.age - 32) * 10 if p.age > 32 else 0
+                if random.randint(0, 100) < chance_retire:
+                    retired_count += 1
+                    # REGEN: Cria um jovem para substituir na base (College) ou Free Agent
+                    # No MVP, vamos repor no próprio time para manter elenco cheio
+                    pos = p.position
+                    ovr = random.randint(50, 75)
+                    new_p = Player(self.fake.name_male(), pos, random.randint(16, 19), ovr, team.name)
+                    new_p.name += " (Jr)" # Marca de Regen visual
+                    new_roster.append(new_p)
+                    new_rookies += 1
+                else:
+                    new_roster.append(p)
+            
+            team.players = new_roster
+            team.reset_stats() # Zera pontos na tabela
+            
+        # 3. Atualizar Ano
+        self.season_year += 1
+        
+        return f"Temporada {self.season_year} Iniciada! {retired_count} aposentadorias, {new_rookies} novos talentos."
+
+    def get_top_scorer(self, league_filter=None):
+        all_players = []
+        teams = self.get_teams_by_league(league_filter) if league_filter else self.teams
+        for t in teams: all_players.extend(t.players)
+        
+        if not all_players: return None
+        return sorted(all_players, key=lambda x: x.goals, reverse=True)[0]
+
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
 @st.cache_resource
@@ -803,7 +884,7 @@ if st.sidebar.button("Simular Temporada Regular LNF"):
     st.session_state.simulated_lnf = True
 
 # Abas Principais
-tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes"])
+tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes". "Histórico"])
 
 with tab_lnf:
     st.header(f"Liga Nacional de Futebol - {season_year}")
@@ -1082,3 +1163,54 @@ with tab_clubs:
                 with st.expander("📺 Ver Melhores Momentos (Minuto a Minuto)", expanded=True):
                     for event in events:
                         st.write(event)
+
+with tab_history:
+    st.header("Observatório Nacional de Performance (ONP)")
+    
+    # Estatísticas Atuais
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader(f"Artilharia LNF {engine.season_year}")
+        lnf_teams = engine.get_teams_by_league("LNF")
+        all_lnf_players = [p for t in lnf_teams for p in t.players]
+        # Top 10 Artilheiros
+        top_scorers = sorted(all_lnf_players, key=lambda x: x.goals, reverse=True)[:10]
+        
+        df_goals = pd.DataFrame([{
+            "Jogador": p.name,
+            "Time": p.team_name,
+            "Gols": p.goals,
+            "Overall": p.overall
+        } for p in top_scorers])
+        st.table(df_goals)
+        
+    with col2:
+        st.subheader("Galeria de Troféus (Hall of Fame)")
+        if len(engine.history) > 0:
+            st.dataframe(pd.DataFrame(engine.history), use_container_width=True)
+        else:
+            st.info("Nenhuma temporada concluída ainda.")
+
+    st.divider()
+    
+    # ZONA DE TRANSIÇÃO DE TEMPORADA
+    st.subheader("⚙️ Gestão de Tempo")
+    st.markdown("Ao encerrar a temporada, os jogadores envelhecem, estatísticas resetam e o ano vira.")
+    
+    if st.button("Avance para a Próxima Temporada ⏩"):
+        # Precisamos saber quem foi o campeão para salvar no histórico
+        # Vamos pegar quem tem mais pontos na LNF como "Campeão" se não houver playoff rodado
+        # Idealmente, pegaríamos do estado do playoff, mas aqui faremos uma estimativa segura
+        lnf_teams = engine.get_teams_by_league("LNF")
+        champ_lnf = sorted(lnf_teams, key=lambda x: x.points, reverse=True)[0]
+        
+        college_teams = engine.get_teams_by_league("College")
+        champ_college = sorted(college_teams, key=lambda x: x.rating, reverse=True)[0] # Proxy
+        
+        msg = engine.advance_season(champ_lnf, champ_college)
+        
+        # Resetar estados da UI
+        st.session_state.simulated_lnf = False
+        st.success(msg)
+        st.balloons()
