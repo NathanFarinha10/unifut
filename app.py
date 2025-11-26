@@ -884,7 +884,7 @@ if st.sidebar.button("Simular Temporada Regular LNF"):
     st.session_state.simulated_lnf = True
 
 # Abas Principais
-tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes". "Histórico"])
+tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes", "Histórico"])
 
 with tab_lnf:
     st.header(f"Liga Nacional de Futebol - {season_year}")
