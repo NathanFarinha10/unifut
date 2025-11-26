@@ -5,19 +5,42 @@ import random
 import copy
 import json 
 import os
+from faker import Faker
 
 # Configuração da Página
 st.set_page_config(page_title="UniFUT Simulação", layout="wide", page_icon="⚽")
 
 # --- CLASSES ESTRUTURAIS ---
 
+class Player:
+    def __init__(self, name, position, age, overall, team_name):
+        self.name = name
+        self.position = position # GK, DEF, MID, ATA
+        self.age = age
+        self.overall = overall
+        self.potential = overall + random.randint(0, 5)
+        self.team_name = team_name
+        self.market_value = self._calculate_value()
+
+    def _calculate_value(self):
+        # Fórmula simples de valor de mercado
+        base = self.overall * 10000
+        age_factor = (35 - self.age) / 10
+        return int(base * age_factor)
+
+    def __repr__(self):
+        return f"{self.name} ({self.position}) - {self.overall}"
+
 class Team:
     def __init__(self, name, league, conference, division, rating):
         self.name = name
-        self.league = league # 'LNF', 'College 1', 'College 2'
+        self.league = league 
         self.conference = conference
-        self.division = division # Para LNF: Norte, Sul, etc. Para College: Nome da Conferência
-        self.rating = rating # 0 a 100
+        self.division = division 
+        self.rating = rating 
+        self.players = []  # <--- NOVA LISTA DE JOGADORES
+        
+        # Stats
         self.wins = 0
         self.losses = 0
         self.draws = 0
@@ -167,11 +190,15 @@ class UniFUTEngine:
     def __init__(self):
         self.teams = []
         self.season_year = 2026
+        self.fake = Faker('pt_BR') # Inicializa gerador de nomes BR
         
     def add_team(self, team):
         self.teams.append(team)
         
     def get_teams_by_league(self, league):
+        # Filtro flexível (ex: 'College' pega College 1 e 2)
+        if league == 'College':
+            return [t for t in self.teams if 'College' in t.league]
         return [t for t in self.teams if t.league == league]
 
     def simulate_match(self, team_a, team_b, is_knockout=False):
@@ -215,6 +242,37 @@ class UniFUTEngine:
             team_a.points += 1
             team_b.draws += 1
             team_b.points += 1
+
+    def generate_rosters(self):
+        positions = ["GK", "DEF", "MID", "ATA"]
+        
+        for team in self.teams:
+            # Se já tem jogadores, não gera de novo
+            if len(team.players) > 0: continue
+            
+            # Gerar 25 jogadores por time
+            for _ in range(25):
+                pos = random.choice(positions)
+                
+                # Idade: LNF mais velha, College mais jovem
+                if team.league == 'LNF':
+                    age = random.randint(18, 36)
+                    # Rating baseado na força do time + variação
+                    ovr = int(np.random.normal(team.rating, 3))
+                else:
+                    age = random.randint(16, 23) # College focado em base
+                    # College tem jogadores um pouco piores que o rating do time
+                    # para simular potencial de evolução
+                    ovr = int(np.random.normal(team.rating - 2, 4))
+                
+                # Limites (0-99)
+                ovr = max(40, min(99, ovr))
+                
+                player = Player(self.fake.name_male(), pos, age, ovr, team.name)
+                team.players.append(player)
+            
+            # Ordenar elenco por Overall
+            team.players.sort(key=lambda x: x.overall, reverse=True)
 
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
