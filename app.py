@@ -7,6 +7,46 @@ import json
 import os
 from faker import Faker
 
+# --- ASSETS E IMAGENS ---
+# URLs de logos para os 32 times da LNF (Baseado na lista do PDF)
+LOGO_URLS = {
+    "Flamengo": "https://upload.wikimedia.org/wikipedia/commons/2/2e/Flamengo_braz_logo.svg",
+    "Bahia": "https://upload.wikimedia.org/wikipedia/pt/2/2c/Esporte_Clube_Bahia_logo.png",
+    "Atlético-MG": "https://upload.wikimedia.org/wikipedia/commons/2/27/Clube_Atl%C3%A9tico_Mineiro_logo.svg",
+    "Athletico-PR": "https://upload.wikimedia.org/wikipedia/commons/c/cb/Club_Athletico_Paranaense_2019.svg",
+    "Corinthians": "https://upload.wikimedia.org/wikipedia/pt/b/b4/Corinthians_simbolo.png",
+    "Vitória": "https://upload.wikimedia.org/wikipedia/pt/8/80/Esporte_Clube_Vit%C3%B3ria_logo.png",
+    "Cuiabá": "https://upload.wikimedia.org/wikipedia/pt/2/20/Cuiab%C3%A1EC2020.png",
+    "Juventude": "https://upload.wikimedia.org/wikipedia/pt/8/87/EC_Juventude_logo.png",
+    "Botafogo": "https://upload.wikimedia.org/wikipedia/commons/c/cb/Botafogo_de_Futebol_e_Regatas_logo.svg",
+    "Ceará": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Cear%C3%A1_Sporting_Club_logo.svg/1200px-Cear%C3%A1_Sporting_Club_logo.svg.png",
+    "Remo": "https://upload.wikimedia.org/wikipedia/commons/7/7f/Clube_do_Remo_logo.svg",
+    "Chapecoense": "https://upload.wikimedia.org/wikipedia/commons/b/b2/Associa%C3%A7%C3%A3o_Chapecoense_de_Futebol_logo.svg",
+    "Palmeiras": "https://upload.wikimedia.org/wikipedia/commons/1/10/Palmeiras_logo.svg",
+    "Fortaleza": "https://upload.wikimedia.org/wikipedia/commons/4/42/Fortaleza_Esporte_Clube_logo.svg",
+    "Ponte Preta": "https://upload.wikimedia.org/wikipedia/commons/6/64/Associa%C3%A7%C3%A3o_Atl%C3%A9tica_Ponte_Preta_logo.svg",
+    "Paysandu": "https://upload.wikimedia.org/wikipedia/commons/2/23/Paysandu_Sport_Club_logo.svg",
+    "São Paulo": "https://upload.wikimedia.org/wikipedia/commons/6/6f/Brasao_do_Sao_Paulo_Futebol_Clube.svg",
+    "Grêmio": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Gremio_logo.svg/1200px-Gremio_logo.svg.png",
+    "Criciúma": "https://upload.wikimedia.org/wikipedia/commons/0/04/Criciuma_EC_logo.svg",
+    "Atlético-GO": "https://upload.wikimedia.org/wikipedia/commons/d/d4/Atl%C3%A9tico_Goianiense_logo.svg",
+    "Fluminense": "https://upload.wikimedia.org/wikipedia/commons/a/ad/Fluminense_FC_escudo.png",
+    "Sport": "https://upload.wikimedia.org/wikipedia/pt/1/17/Sport_Club_do_Recife.png",
+    "Guarani": "https://upload.wikimedia.org/wikipedia/commons/3/32/Guarani_Futebol_Clube_logo.svg",
+    "Coritiba": "https://upload.wikimedia.org/wikipedia/commons/8/83/Coritiba_Foot_Ball_Club_logo.svg",
+    "Internacional": "https://upload.wikimedia.org/wikipedia/commons/f/f1/Escudo_do_Sport_Club_Internacional.svg",
+    "RB Bragantino": "https://upload.wikimedia.org/wikipedia/pt/9/94/Red_Bull_Bragantino.png",
+    "Goiás": "https://upload.wikimedia.org/wikipedia/commons/4/49/Goi%C3%A1s_Esporte_Clube_logo.svg",
+    "Avaí": "https://upload.wikimedia.org/wikipedia/commons/f/fe/Avai_FC_%2805-09-2017%29.svg",
+    "Vasco": "https://upload.wikimedia.org/wikipedia/pt/a/ac/CRVascodaGama.png",
+    "Cruzeiro": "https://upload.wikimedia.org/wikipedia/commons/b/bc/Cruzeiro_Esporte_Clube_%28logo%29.svg",
+    "América-MG": "https://upload.wikimedia.org/wikipedia/commons/a/ac/Am%C3%A9rica_Mineiro_logo.svg",
+    "Santos": "https://upload.wikimedia.org/wikipedia/commons/1/15/Santos_Logo.png"
+}
+
+# Fallback para times do College (Escudo Genérico da UniFUT)
+GENERIC_LOGO = "https://cdn-icons-png.flaticon.com/512/18/18405.png" # Ícone de troféu simples
+
 # Configuração da Página
 st.set_page_config(page_title="UniFUT Simulação", layout="wide", page_icon="⚽")
 
@@ -49,6 +89,7 @@ class Team:
         self.division = division 
         self.rating = rating 
         self.players = []
+        self.logo = LOGO_URLS.get(name, GENERIC_LOGO)
         
         # --- ECONOMIA ---
         self.budget = 0       # Caixa disponível
@@ -221,26 +262,60 @@ class UniFUTEngine:
             return [t for t in self.teams if 'College' in t.league]
         return [t for t in self.teams if t.league == league]
 
-    def simulate_match(self, team_a, team_b, is_knockout=False):
-        # Lógica simples de simulação baseada em Rating + Fator Casa
+    def simulate_match(self, team_a, team_b, is_knockout=False, return_events=False):
         home_advantage = 5
         diff = (team_a.rating + home_advantage) - team_b.rating
+        prob_a = 1 / (1 + 10 ** (-diff / 400))
         
-        # Probabilidade baseada na diferença
-        prob_a = 1 / (1 + 10 ** (-diff / 400)) # Elo-like formula simplified
-        
-        # Geração de gols (Poisson)
-        # Média de gols baseada na força relativa
         avg_goals = 2.5
         goals_a = np.random.poisson(avg_goals * (prob_a + 0.1))
         goals_b = np.random.poisson(avg_goals * ((1 - prob_a) + 0.1))
         
-        if is_knockout and goals_a == goals_b:
-            # Pênaltis ou Prorrogação (decisão forçada)
-            winner = random.choice([team_a, team_b])
-            if winner == team_a: goals_a += 1
-            else: goals_b += 1
+        match_events = []
+        
+        if return_events:
+            match_events.append(f"📢 INÍCIO DE JOGO! {team_a.name} recebe o {team_b.name}.")
+            match_events.append(f"🏟️ Estádio lotado para este confronto da {team_a.league}.")
             
+            # Gerar minutos dos gols
+            minutes_a = sorted([random.randint(1, 90) for _ in range(goals_a)])
+            minutes_b = sorted([random.randint(1, 90) for _ in range(goals_b)])
+            
+            all_goals = [(m, team_a.name, "⚽ GOL!") for m in minutes_a] + \
+                        [(m, team_b.name, "⚽ GOL!") for m in minutes_b]
+            all_goals.sort(key=lambda x: x[0])
+            
+            # Simular narrativa cronológica
+            current_time = 0
+            for m, team, event in all_goals:
+                # Adicionar eventos de "quase" ou cartões entre os gols
+                while current_time < m - 10:
+                    current_time += random.randint(10, 20)
+                    if current_time < m:
+                        event_type = random.choice([
+                            "Cartão Amarelo 🟨", "Grande defesa do goleiro! 🧤", 
+                            "Bola na trave! 🥅", "Falta perigosa... pra fora."
+                        ])
+                        rand_team = random.choice([team_a.name, team_b.name])
+                        match_events.append(f"{current_time}' - {event_type} ({rand_team})")
+                
+                match_events.append(f"**{m}' - {event} ({team})**")
+                current_time = m
+            
+            match_events.append(f"⏱️ FIM DE JOGO! Placar final: {team_a.name} {goals_a} x {goals_b} {team_b.name}")
+
+        if is_knockout and goals_a == goals_b:
+            if return_events: match_events.append("⚖️ Empate! Vamos para os Pênaltis...")
+            winner = random.choice([team_a, team_b])
+            if winner == team_a: 
+                goals_a += 1 # Tiebreaker técnico
+                if return_events: match_events.append(f"✅ {team_a.name} vence nos pênaltis!")
+            else: 
+                goals_b += 1
+                if return_events: match_events.append(f"✅ {team_b.name} vence nos pênaltis!")
+            
+        if return_events:
+            return goals_a, goals_b, match_events
         return goals_a, goals_b
 
     def update_table(self, team_a, team_b, goals_a, goals_b):
@@ -695,6 +770,7 @@ def get_standings_df(teams):
     data = []
     for t in teams:
         data.append({
+            "Logo": t.logo, # <--- NOVA COLUNA
             "Time": t.name,
             "Conf": t.conference if t.league == 'LNF' else t.division,
             "Div": t.division if t.league == 'LNF' else '-',
@@ -702,8 +778,6 @@ def get_standings_df(teams):
             "V": t.wins,
             "E": t.draws,
             "D": t.losses,
-            "GP": t.goals_for,
-            "GC": t.goals_against,
             "SG": t.goal_diff
         })
     df = pd.DataFrame(data)
@@ -729,27 +803,33 @@ if st.sidebar.button("Simular Temporada Regular LNF"):
     st.session_state.simulated_lnf = True
 
 # Abas Principais
-tab_lnf, tab_college, tab_copas, tab_draft, tab_finance = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças"])
+tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes"])
 
 with tab_lnf:
     st.header(f"Liga Nacional de Futebol - {season_year}")
     
     if st.session_state.simulated_lnf:
+        column_config = {
+            "Logo": st.column_config.ImageColumn("Escudo", width="small"),
+            "Time": st.column_config.TextColumn("Clube", width="medium"),
+            "Pts": st.column_config.ProgressColumn("Pontos", format="%d", min_value=0, max_value=60),
+        }
+
         # Exibir tabelas por Conferência
-        col1, col2 = st.columns(2)
-        
         lnf_teams = engine.get_teams_by_league("LNF")
         df = get_standings_df(lnf_teams)
         
-        with col1:
-            st.subheader("Conferência Brasileira")
+        st.subheader("Classificação Oficial LNF")
+        
+        tab_br, tab_nac = st.tabs(["Conferência Brasileira", "Conferência Nacional"])
+        
+        with tab_br:
             df_br = df[df["Conf"] == "Brasileira"].drop(columns=["Conf"])
-            st.dataframe(df_br, height=400)
+            st.dataframe(df_br, column_config=column_config, hide_index=True, use_container_width=True)
             
-        with col2:
-            st.subheader("Conferência Nacional")
+        with tab_nac:
             df_nac = df[df["Conf"] == "Nacional"].drop(columns=["Conf"])
-            st.dataframe(df_nac, height=400)
+            st.dataframe(df_nac, column_config=column_config, hide_index=True, use_container_width=True)
             
         st.divider()
         st.subheader("Simulação de Playoffs (Top 7 por Conferência)")
@@ -950,3 +1030,55 @@ with tab_finance:
             engine.distribute_tv_rights()
             st.success("Receitas distribuídas! Confira a coluna 'Receitas' atualizada na tabela acima.")
             st.balloons()
+
+with tab_clubs:
+    st.header("Raio-X dos Clubes")
+    
+    all_teams = engine.teams
+    team_names = sorted([t.name for t in all_teams])
+    
+    selected_team_name = st.selectbox("Escolha um clube para analisar:", team_names)
+    
+    # Buscar objeto do time
+    team = next((t for t in all_teams if t.name == selected_team_name), None)
+    
+    if team:
+        col_profile, col_stats = st.columns([1, 3])
+        
+        with col_profile:
+            st.image(team.logo, width=150)
+            st.markdown(f"**{team.name}**")
+            st.caption(f"{team.league} - {team.division}")
+            st.metric("Rating Geral", team.rating)
+            st.metric("Orçamento", f"R$ {team.budget/1e6:.1f}M")
+            
+        with col_stats:
+            st.subheader("Elenco Principal")
+            if len(team.players) > 0:
+                roster_data = [{
+                    "Nome": p.name, 
+                    "Pos": p.position, 
+                    "Idade": p.age, 
+                    "Ovr": p.overall, 
+                    "Valor": f"R$ {p.market_value/1e6:.1f}M"
+                } for p in team.players]
+                st.dataframe(pd.DataFrame(roster_data), height=300, use_container_width=True)
+            else:
+                st.info("Elenco ainda não gerado.")
+                
+            st.subheader("Desempenho na Temporada")
+            st.write(f"**Jogos:** {team.games_played} | **Vitórias:** {team.wins} | **Gols Pró:** {team.goals_for}")
+            
+            # Botão para Jogo de Exibição
+            st.divider()
+            opponent_name = st.selectbox("Escolha adversário para Amistoso:", [t for t in team_names if t != team.name])
+            if st.button(f"Jogar Amistoso: {team.name} vs {opponent_name}"):
+                opp = next((t for t in all_teams if t.name == opponent_name), None)
+                
+                # Simular com Narrativa!
+                g1, g2, events = engine.simulate_match(team, opp, return_events=True)
+                
+                st.markdown(f"### Placar Final: {team.name} {g1} x {g2} {opp.name}")
+                with st.expander("📺 Ver Melhores Momentos (Minuto a Minuto)", expanded=True):
+                    for event in events:
+                        st.write(event)
