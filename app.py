@@ -58,25 +58,21 @@ class Player:
         self.position = position
         self.age = age
         self.overall = overall
-        self.potential = overall + random.randint(0, 5)
+        # Potencial: Jovens têm teto mais alto
+        self.potential = overall + random.randint(5, 15) if age < 23 else overall + random.randint(0, 3)
         self.team_name = team_name
         
         # Economia
+        self.contract_years = random.randint(1, 4)
         self.market_value = self._calculate_value()
         self.wage = self._calculate_wage()
         
-        # --- NOVO: CONTRATO (Anos restantes) ---
-        # LNF: contratos longos (3-5 anos). College: curtos (1-3 anos).
-        if "College" in team_name or "College" in str(team_name): # Simplificação
-             self.contract_years = random.randint(1, 3)
-        else:
-             self.contract_years = random.randint(2, 5)
-
-        # Stats
+        # Stats e Evolução
         self.goals = 0
         self.assists = 0
         self.matches = 0
         self.mvp_points = 0
+        self.last_evolution = 0 # Armazena o ganho/perda da última temporada (Ex: +2, -1)
 
     def _calculate_value(self):
         base = self.overall ** 3.5
@@ -89,12 +85,63 @@ class Player:
     def reset_season_stats(self):
         self.goals = 0; self.assists = 0; self.matches = 0; self.mvp_points = 0
 
-    # Serialização Atualizada
+    def evolve(self):
+        """
+        Calcula a evolução do jogador baseado na temporada (RPG Engine).
+        Retorna o valor da mudança (ex: +2, -1, 0).
+        """
+        growth = 0
+        
+        # 1. Fator Idade (Curva de Desenvolvimento)
+        if self.age < 24:
+            base_chance = 60 # Jovens tendem a crescer
+        elif 24 <= self.age <= 30:
+            base_chance = 20 # Auge (estabilidade)
+        else:
+            base_chance = -30 # Veteranos tendem a cair (Regressão)
+            
+        # 2. Fator Performance (XP)
+        # Cada jogo soma pontos de chance. Gols somam mais.
+        performance_xp = (self.matches * 2) + (self.goals * 3) + (self.assists * 2)
+        
+        # Bônus para quem joga muito
+        if self.matches > 10: base_chance += 10
+        if self.matches > 20: base_chance += 15
+        
+        # Bônus por desempenho excepcional
+        if performance_xp > 50: base_chance += 20
+        
+        # 3. Fator Potencial
+        # Se já atingiu o potencial, é muito difícil crescer mais
+        if self.overall >= self.potential:
+            base_chance -= 40
+            
+        # --- CÁLCULO FINAL (Rolagem de Dados) ---
+        roll = random.randint(0, 100) + (base_chance / 2)
+        
+        if roll > 95: growth = 3      # Explosão (+3)
+        elif roll > 80: growth = 2    # Ótima evolução (+2)
+        elif roll > 50: growth = 1    # Evolução padrão (+1)
+        elif roll < 20 and self.age > 30: growth = -1 # Regressão leve
+        elif roll < 5 and self.age > 32: growth = -2  # Regressão forte
+        
+        # Aplicar
+        self.overall += growth
+        self.overall = max(40, min(99, self.overall)) # Limites (40-99)
+        self.last_evolution = growth
+        
+        # Recalcular valor de mercado após evolução (Valorização/Desvalorização)
+        self.market_value = self._calculate_value()
+        
+        return growth
+
+    # Serialização Atualizada (Incluindo last_evolution)
     def to_dict(self):
         return {
             "name": self.name, "position": self.position, "age": self.age,
             "overall": self.overall, "potential": self.potential, "team_name": self.team_name,
-            "goals": self.goals, "matches": self.matches, "contract_years": self.contract_years
+            "goals": self.goals, "matches": self.matches, "contract_years": self.contract_years,
+            "last_evolution": self.last_evolution
         }
 
     @classmethod
@@ -104,6 +151,7 @@ class Player:
         p.goals = data.get("goals", 0)
         p.matches = data.get("matches", 0)
         p.contract_years = data.get("contract_years", 1)
+        p.last_evolution = data.get("last_evolution", 0)
         return p
 
 class Team:
@@ -741,15 +789,11 @@ class UniFUTEngine:
 
     def advance_season(self, champion_lnf, champion_ncp):
         """
-        Realiza a virada de ano:
-        1. Salva histórico
-        2. Envelhece jogadores
-        3. Aposenta veteranos e cria Regens
-        4. Reseta tabelas
+        Realiza a virada de ano com Evolução Dinâmica (Sprint 7.0)
         """
         # 1. Salvar Histórico
         top_scorer_lnf = self.get_top_scorer("LNF")
-        mvp = top_scorer_lnf # Simplificação MVP = Artilheiro
+        mvp = top_scorer_lnf # Simplificação
         
         self.history.append({
             "Ano": self.season_year,
@@ -759,38 +803,46 @@ class UniFUTEngine:
             "MVP": mvp.name
         })
         
-        # 2. Ciclo de Vida dos Atletas
+        # 2. Ciclo de Vida e Evolução (RPG)
         retired_count = 0
-        new_rookies = 0
+        evolution_log = {"up": 0, "down": 0, "stable": 0}
         
         for team in self.teams:
             new_roster = []
             for p in team.players:
-                p.age += 1
-                p.reset_season_stats() # Zera gols para o novo ano
+                # --- EVOLUÇÃO DINÂMICA ---
+                growth = p.evolve() # Calcula ganho baseado na temporada atual
                 
-                # Chance de Aposentadoria (Alta após 34 anos)
+                if growth > 0: evolution_log["up"] += 1
+                elif growth < 0: evolution_log["down"] += 1
+                else: evolution_log["stable"] += 1
+                
+                # Envelhecimento
+                p.age += 1
+                p.reset_season_stats() # Zera gols PARA O PRÓXIMO ANO
+                
+                # Aposentadoria
                 chance_retire = (p.age - 32) * 10 if p.age > 32 else 0
                 if random.randint(0, 100) < chance_retire:
                     retired_count += 1
-                    # REGEN: Cria um jovem para substituir na base (College) ou Free Agent
-                    # No MVP, vamos repor no próprio time para manter elenco cheio
+                    # Regen (Reposição da Base)
                     pos = p.position
-                    ovr = random.randint(50, 75)
+                    ovr = random.randint(50, 70)
                     new_p = Player(self.fake.name_male(), pos, random.randint(16, 19), ovr, team.name)
-                    new_p.name += " (Jr)" # Marca de Regen visual
+                    new_p.name += " (Jr)"
+                    new_p.last_evolution = 0 # Novo, sem histórico
                     new_roster.append(new_p)
-                    new_rookies += 1
                 else:
                     new_roster.append(p)
             
             team.players = new_roster
             team.reset_stats() # Zera pontos na tabela
+            team.revenue = 0 # Zera receita do ano (novo orçamento)
             
         # 3. Atualizar Ano
         self.season_year += 1
         
-        return f"Temporada {self.season_year} Iniciada! {retired_count} aposentadorias, {new_rookies} novos talentos."
+        return f"Temporada {self.season_year} Iniciada! 📈 {evolution_log['up']} evoluíram, 📉 {evolution_log['down']} regrediram. 🚪 {retired_count} aposentadorias."
 
     def get_top_scorer(self, league_filter=None):
         all_players = []
