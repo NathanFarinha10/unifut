@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import random
 import copy
+import json 
+import os
 
 # Configuração da Página
 st.set_page_config(page_title="UniFUT Simulação", layout="wide", page_icon="⚽")
