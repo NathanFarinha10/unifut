@@ -1,0 +1,966 @@
+{
+    "college1": [
+        {
+            "name": "Amazonas FC",
+            "conference": "Amazônica",
+            "rating": 73
+        },
+        {
+            "name": "Manaus",
+            "conference": "Amazônica",
+            "rating": 73
+        },
+        {
+            "name": "Nacional-AM",
+            "conference": "Amazônica",
+            "rating": 69
+        },
+        {
+            "name": "São Raimundo-RR",
+            "conference": "Amazônica",
+            "rating": 69
+        },
+        {
+            "name": "Rio Branco-AC",
+            "conference": "Amazônica",
+            "rating": 76
+        },
+        {
+            "name": "Humaitá",
+            "conference": "Amazônica",
+            "rating": 70
+        },
+        {
+            "name": "Porto Velho",
+            "conference": "Amazônica",
+            "rating": 72
+        },
+        {
+            "name": "Genus",
+            "conference": "Amazônica",
+            "rating": 78
+        },
+        {
+            "name": "Trem",
+            "conference": "Amazônica",
+            "rating": 69
+        },
+        {
+            "name": "Santos-AP",
+            "conference": "Amazônica",
+            "rating": 73
+        },
+        {
+            "name": "Águia de Marabá",
+            "conference": "Amazônica",
+            "rating": 74
+        },
+        {
+            "name": "Tuna Luso",
+            "conference": "Amazônica",
+            "rating": 74
+        },
+        {
+            "name": "Sampaio Corrêa",
+            "conference": "Nordeste Atlântico",
+            "rating": 69
+        },
+        {
+            "name": "Moto Club",
+            "conference": "Nordeste Atlântico",
+            "rating": 76
+        },
+        {
+            "name": "River-PI",
+            "conference": "Nordeste Atlântico",
+            "rating": 72
+        },
+        {
+            "name": "Altos",
+            "conference": "Nordeste Atlântico",
+            "rating": 75
+        },
+        {
+            "name": "América-RN",
+            "conference": "Nordeste Atlântico",
+            "rating": 73
+        },
+        {
+            "name": "ABC",
+            "conference": "Nordeste Atlântico",
+            "rating": 71
+        },
+        {
+            "name": "Potiguar",
+            "conference": "Nordeste Atlântico",
+            "rating": 70
+        },
+        {
+            "name": "Botafogo-PB",
+            "conference": "Nordeste Atlântico",
+            "rating": 74
+        },
+        {
+            "name": "Treze",
+            "conference": "Nordeste Atlântico",
+            "rating": 68
+        },
+        {
+            "name": "Campinense",
+            "conference": "Nordeste Atlântico",
+            "rating": 68
+        },
+        {
+            "name": "Sousa",
+            "conference": "Nordeste Atlântico",
+            "rating": 77
+        },
+        {
+            "name": "Ferroviário-CE",
+            "conference": "Nordeste Atlântico",
+            "rating": 68
+        },
+        {
+            "name": "Náutico",
+            "conference": "Nordeste Sul",
+            "rating": 73
+        },
+        {
+            "name": "Santa Cruz",
+            "conference": "Nordeste Sul",
+            "rating": 79
+        },
+        {
+            "name": "Retrô",
+            "conference": "Nordeste Sul",
+            "rating": 68
+        },
+        {
+            "name": "Petrolina",
+            "conference": "Nordeste Sul",
+            "rating": 74
+        },
+        {
+            "name": "CRB",
+            "conference": "Nordeste Sul",
+            "rating": 78
+        },
+        {
+            "name": "CSA",
+            "conference": "Nordeste Sul",
+            "rating": 78
+        },
+        {
+            "name": "ASA",
+            "conference": "Nordeste Sul",
+            "rating": 70
+        },
+        {
+            "name": "CSE",
+            "conference": "Nordeste Sul",
+            "rating": 72
+        },
+        {
+            "name": "Confiança",
+            "conference": "Nordeste Sul",
+            "rating": 69
+        },
+        {
+            "name": "Sergipe",
+            "conference": "Nordeste Sul",
+            "rating": 76
+        },
+        {
+            "name": "Itabaiana",
+            "conference": "Nordeste Sul",
+            "rating": 73
+        },
+        {
+            "name": "Juazeirense",
+            "conference": "Nordeste Sul",
+            "rating": 75
+        },
+        {
+            "name": "Vila Nova",
+            "conference": "Centro-Oeste",
+            "rating": 77
+        },
+        {
+            "name": "Aparecidense",
+            "conference": "Centro-Oeste",
+            "rating": 71
+        },
+        {
+            "name": "Anápolis",
+            "conference": "Centro-Oeste",
+            "rating": 69
+        },
+        {
+            "name": "Goianésia",
+            "conference": "Centro-Oeste",
+            "rating": 75
+        },
+        {
+            "name": "Brasiliense",
+            "conference": "Centro-Oeste",
+            "rating": 78
+        },
+        {
+            "name": "Gama",
+            "conference": "Centro-Oeste",
+            "rating": 76
+        },
+        {
+            "name": "Real Brasília",
+            "conference": "Centro-Oeste",
+            "rating": 71
+        },
+        {
+            "name": "Ceilândia",
+            "conference": "Centro-Oeste",
+            "rating": 69
+        },
+        {
+            "name": "Luverdense",
+            "conference": "Centro-Oeste",
+            "rating": 77
+        },
+        {
+            "name": "Mixto",
+            "conference": "Centro-Oeste",
+            "rating": 72
+        },
+        {
+            "name": "União Rondonópolis",
+            "conference": "Centro-Oeste",
+            "rating": 73
+        },
+        {
+            "name": "Operário-VG",
+            "conference": "Centro-Oeste",
+            "rating": 74
+        },
+        {
+            "name": "Tombense",
+            "conference": "Sudeste Norte",
+            "rating": 69
+        },
+        {
+            "name": "Athletic Club",
+            "conference": "Sudeste Norte",
+            "rating": 76
+        },
+        {
+            "name": "Caldense",
+            "conference": "Sudeste Norte",
+            "rating": 76
+        },
+        {
+            "name": "Villa Nova-MG",
+            "conference": "Sudeste Norte",
+            "rating": 75
+        },
+        {
+            "name": "Pouso Alegre",
+            "conference": "Sudeste Norte",
+            "rating": 69
+        },
+        {
+            "name": "Patrocinense",
+            "conference": "Sudeste Norte",
+            "rating": 72
+        },
+        {
+            "name": "Democrata-GV",
+            "conference": "Sudeste Norte",
+            "rating": 75
+        },
+        {
+            "name": "Ipatinga",
+            "conference": "Sudeste Norte",
+            "rating": 74
+        },
+        {
+            "name": "Rio Branco-ES",
+            "conference": "Sudeste Norte",
+            "rating": 78
+        },
+        {
+            "name": "Desportiva",
+            "conference": "Sudeste Norte",
+            "rating": 71
+        },
+        {
+            "name": "Vitória-ES",
+            "conference": "Sudeste Norte",
+            "rating": 70
+        },
+        {
+            "name": "Serra",
+            "conference": "Sudeste Norte",
+            "rating": 69
+        },
+        {
+            "name": "Volta Redonda",
+            "conference": "Sudeste Sul",
+            "rating": 75
+        },
+        {
+            "name": "Nova Iguaçu",
+            "conference": "Sudeste Sul",
+            "rating": 70
+        },
+        {
+            "name": "Portuguesa-RJ",
+            "conference": "Sudeste Sul",
+            "rating": 78
+        },
+        {
+            "name": "Madureira",
+            "conference": "Sudeste Sul",
+            "rating": 71
+        },
+        {
+            "name": "Bangu",
+            "conference": "Sudeste Sul",
+            "rating": 68
+        },
+        {
+            "name": "Boavista",
+            "conference": "Sudeste Sul",
+            "rating": 71
+        },
+        {
+            "name": "Audax-RJ",
+            "conference": "Sudeste Sul",
+            "rating": 73
+        },
+        {
+            "name": "Resende",
+            "conference": "Sudeste Sul",
+            "rating": 69
+        },
+        {
+            "name": "São José-SP",
+            "conference": "Sudeste Sul",
+            "rating": 69
+        },
+        {
+            "name": "Taubaté",
+            "conference": "Sudeste Sul",
+            "rating": 73
+        },
+        {
+            "name": "XV de Piracicaba",
+            "conference": "Sudeste Sul",
+            "rating": 75
+        },
+        {
+            "name": "Noroeste",
+            "conference": "Sudeste Sul",
+            "rating": 71
+        },
+        {
+            "name": "Novorizontino",
+            "conference": "Paulista",
+            "rating": 75
+        },
+        {
+            "name": "Mirassol",
+            "conference": "Paulista",
+            "rating": 74
+        },
+        {
+            "name": "Ituano",
+            "conference": "Paulista",
+            "rating": 77
+        },
+        {
+            "name": "Botafogo-SP",
+            "conference": "Paulista",
+            "rating": 68
+        },
+        {
+            "name": "Ferroviária",
+            "conference": "Paulista",
+            "rating": 70
+        },
+        {
+            "name": "Inter de Limeira",
+            "conference": "Paulista",
+            "rating": 76
+        },
+        {
+            "name": "Santo André",
+            "conference": "Paulista",
+            "rating": 76
+        },
+        {
+            "name": "São Bernardo FC",
+            "conference": "Paulista",
+            "rating": 73
+        },
+        {
+            "name": "Portuguesa",
+            "conference": "Paulista",
+            "rating": 72
+        },
+        {
+            "name": "Oeste",
+            "conference": "Paulista",
+            "rating": 68
+        },
+        {
+            "name": "Juventus-SP",
+            "conference": "Paulista",
+            "rating": 75
+        },
+        {
+            "name": "São Bento",
+            "conference": "Paulista",
+            "rating": 71
+        },
+        {
+            "name": "Figueirense",
+            "conference": "Sul",
+            "rating": 80
+        },
+        {
+            "name": "Brusque",
+            "conference": "Sul",
+            "rating": 72
+        },
+        {
+            "name": "Joinville",
+            "conference": "Sul",
+            "rating": 70
+        },
+        {
+            "name": "Marcílio Dias",
+            "conference": "Sul",
+            "rating": 77
+        },
+        {
+            "name": "Londrina",
+            "conference": "Sul",
+            "rating": 76
+        },
+        {
+            "name": "Operário-PR",
+            "conference": "Sul",
+            "rating": 69
+        },
+        {
+            "name": "Paraná Clube",
+            "conference": "Sul",
+            "rating": 71
+        },
+        {
+            "name": "Maringá",
+            "conference": "Sul",
+            "rating": 73
+        },
+        {
+            "name": "Brasil de Pelotas",
+            "conference": "Sul",
+            "rating": 75
+        },
+        {
+            "name": "Ypiranga",
+            "conference": "Sul",
+            "rating": 68
+        },
+        {
+            "name": "Caxias",
+            "conference": "Sul",
+            "rating": 70
+        },
+        {
+            "name": "São José-RS",
+            "conference": "Sul",
+            "rating": 70
+        }
+    ],
+    "college2": [
+        {
+            "name": "Princesa do Solimões",
+            "conference": "Amazônica",
+            "rating": 64
+        },
+        {
+            "name": "Fast Clube",
+            "conference": "Amazônica",
+            "rating": 63
+        },
+        {
+            "name": "Galvez",
+            "conference": "Amazônica",
+            "rating": 57
+        },
+        {
+            "name": "Plácido de Castro",
+            "conference": "Amazônica",
+            "rating": 60
+        },
+        {
+            "name": "Real Ariquemes",
+            "conference": "Amazônica",
+            "rating": 62
+        },
+        {
+            "name": "Ji-Paraná",
+            "conference": "Amazônica",
+            "rating": 63
+        },
+        {
+            "name": "Ypiranga-AP",
+            "conference": "Amazônica",
+            "rating": 56
+        },
+        {
+            "name": "Oratório",
+            "conference": "Amazônica",
+            "rating": 62
+        },
+        {
+            "name": "Castanhal",
+            "conference": "Amazônica",
+            "rating": 60
+        },
+        {
+            "name": "Cametá",
+            "conference": "Amazônica",
+            "rating": 61
+        },
+        {
+            "name": "Bragantino-PA",
+            "conference": "Amazônica",
+            "rating": 56
+        },
+        {
+            "name": "Tapajós",
+            "conference": "Amazônica",
+            "rating": 58
+        },
+        {
+            "name": "Maranhão",
+            "conference": "Nordeste Atlântico",
+            "rating": 56
+        },
+        {
+            "name": "Imperatriz",
+            "conference": "Nordeste Atlântico",
+            "rating": 61
+        },
+        {
+            "name": "Parnahyba",
+            "conference": "Nordeste Atlântico",
+            "rating": 59
+        },
+        {
+            "name": "4 de Julho",
+            "conference": "Nordeste Atlântico",
+            "rating": 55
+        },
+        {
+            "name": "Globo",
+            "conference": "Nordeste Atlântico",
+            "rating": 65
+        },
+        {
+            "name": "Santa Cruz-RN",
+            "conference": "Nordeste Atlântico",
+            "rating": 58
+        },
+        {
+            "name": "Nacional de Patos",
+            "conference": "Nordeste Atlântico",
+            "rating": 62
+        },
+        {
+            "name": "Atlético-PB",
+            "conference": "Nordeste Atlântico",
+            "rating": 57
+        },
+        {
+            "name": "Iguatu",
+            "conference": "Nordeste Atlântico",
+            "rating": 61
+        },
+        {
+            "name": "Pacajus",
+            "conference": "Nordeste Atlântico",
+            "rating": 65
+        },
+        {
+            "name": "Caucaia",
+            "conference": "Nordeste Atlântico",
+            "rating": 58
+        },
+        {
+            "name": "Barbalha",
+            "conference": "Nordeste Atlântico",
+            "rating": 56
+        },
+        {
+            "name": "Central",
+            "conference": "Nordeste Sul",
+            "rating": 56
+        },
+        {
+            "name": "Maguary",
+            "conference": "Nordeste Sul",
+            "rating": 59
+        },
+        {
+            "name": "Afogados",
+            "conference": "Nordeste Sul",
+            "rating": 56
+        },
+        {
+            "name": "Salgueiro",
+            "conference": "Nordeste Sul",
+            "rating": 57
+        },
+        {
+            "name": "Murici",
+            "conference": "Nordeste Sul",
+            "rating": 55
+        },
+        {
+            "name": "Coruripe",
+            "conference": "Nordeste Sul",
+            "rating": 62
+        },
+        {
+            "name": "Cruzeiro-AL",
+            "conference": "Nordeste Sul",
+            "rating": 62
+        },
+        {
+            "name": "Lagarto",
+            "conference": "Nordeste Sul",
+            "rating": 56
+        },
+        {
+            "name": "Falcon",
+            "conference": "Nordeste Sul",
+            "rating": 61
+        },
+        {
+            "name": "Jacuipense",
+            "conference": "Nordeste Sul",
+            "rating": 61
+        },
+        {
+            "name": "Bahia de Feira",
+            "conference": "Nordeste Sul",
+            "rating": 62
+        },
+        {
+            "name": "Atlético-BA",
+            "conference": "Nordeste Sul",
+            "rating": 55
+        },
+        {
+            "name": "Iporá",
+            "conference": "Centro-Oeste",
+            "rating": 62
+        },
+        {
+            "name": "Crac",
+            "conference": "Centro-Oeste",
+            "rating": 59
+        },
+        {
+            "name": "Morrinhos",
+            "conference": "Centro-Oeste",
+            "rating": 56
+        },
+        {
+            "name": "Goianésia",
+            "conference": "Centro-Oeste",
+            "rating": 65
+        },
+        {
+            "name": "Paranoá",
+            "conference": "Centro-Oeste",
+            "rating": 65
+        },
+        {
+            "name": "Capital-DF",
+            "conference": "Centro-Oeste",
+            "rating": 56
+        },
+        {
+            "name": "Santa Maria",
+            "conference": "Centro-Oeste",
+            "rating": 62
+        },
+        {
+            "name": "Samambaia",
+            "conference": "Centro-Oeste",
+            "rating": 62
+        },
+        {
+            "name": "Operário-MS",
+            "conference": "Centro-Oeste",
+            "rating": 65
+        },
+        {
+            "name": "Costa Rica-MS",
+            "conference": "Centro-Oeste",
+            "rating": 60
+        },
+        {
+            "name": "Dourados",
+            "conference": "Centro-Oeste",
+            "rating": 62
+        },
+        {
+            "name": "Ivinhema",
+            "conference": "Centro-Oeste",
+            "rating": 64
+        },
+        {
+            "name": "Uberlândia",
+            "conference": "Sudeste Norte",
+            "rating": 55
+        },
+        {
+            "name": "URT",
+            "conference": "Sudeste Norte",
+            "rating": 57
+        },
+        {
+            "name": "Boa Esporte",
+            "conference": "Sudeste Norte",
+            "rating": 58
+        },
+        {
+            "name": "Tupi",
+            "conference": "Sudeste Norte",
+            "rating": 64
+        },
+        {
+            "name": "Betim",
+            "conference": "Sudeste Norte",
+            "rating": 58
+        },
+        {
+            "name": "Aymorés",
+            "conference": "Sudeste Norte",
+            "rating": 56
+        },
+        {
+            "name": "Nova Venécia",
+            "conference": "Sudeste Norte",
+            "rating": 64
+        },
+        {
+            "name": "Real Noroeste",
+            "conference": "Sudeste Norte",
+            "rating": 62
+        },
+        {
+            "name": "Estrela do Norte",
+            "conference": "Sudeste Norte",
+            "rating": 57
+        },
+        {
+            "name": "Linhares",
+            "conference": "Sudeste Norte",
+            "rating": 60
+        },
+        {
+            "name": "Valeriodoce",
+            "conference": "Sudeste Norte",
+            "rating": 62
+        },
+        {
+            "name": "Mamoré",
+            "conference": "Sudeste Norte",
+            "rating": 62
+        },
+        {
+            "name": "Olaria",
+            "conference": "Sudeste Sul",
+            "rating": 58
+        },
+        {
+            "name": "Americano",
+            "conference": "Sudeste Sul",
+            "rating": 56
+        },
+        {
+            "name": "Friburguense",
+            "conference": "Sudeste Sul",
+            "rating": 64
+        },
+        {
+            "name": "Cabofriense",
+            "conference": "Sudeste Sul",
+            "rating": 63
+        },
+        {
+            "name": "Maricá",
+            "conference": "Sudeste Sul",
+            "rating": 58
+        },
+        {
+            "name": "Sampaio Corrêa-RJ",
+            "conference": "Sudeste Sul",
+            "rating": 64
+        },
+        {
+            "name": "Comercial-SP",
+            "conference": "Sudeste Sul",
+            "rating": 65
+        },
+        {
+            "name": "Marília",
+            "conference": "Sudeste Sul",
+            "rating": 61
+        },
+        {
+            "name": "Rio Claro",
+            "conference": "Sudeste Sul",
+            "rating": 58
+        },
+        {
+            "name": "Velo Clube",
+            "conference": "Sudeste Sul",
+            "rating": 63
+        },
+        {
+            "name": "Primavera",
+            "conference": "Sudeste Sul",
+            "rating": 58
+        },
+        {
+            "name": "Capivariano",
+            "conference": "Sudeste Sul",
+            "rating": 57
+        },
+        {
+            "name": "Água Santa",
+            "conference": "Paulista",
+            "rating": 64
+        },
+        {
+            "name": "Linense",
+            "conference": "Paulista",
+            "rating": 65
+        },
+        {
+            "name": "Monte Azul",
+            "conference": "Paulista",
+            "rating": 63
+        },
+        {
+            "name": "Rio Preto",
+            "conference": "Paulista",
+            "rating": 57
+        },
+        {
+            "name": "Votuporanguense",
+            "conference": "Paulista",
+            "rating": 57
+        },
+        {
+            "name": "Sertãozinho",
+            "conference": "Paulista",
+            "rating": 59
+        },
+        {
+            "name": "Nacional-SP",
+            "conference": "Paulista",
+            "rating": 58
+        },
+        {
+            "name": "São Caetano",
+            "conference": "Paulista",
+            "rating": 58
+        },
+        {
+            "name": "Osasco Audax",
+            "conference": "Paulista",
+            "rating": 55
+        },
+        {
+            "name": "EC São Bernardo",
+            "conference": "Paulista",
+            "rating": 58
+        },
+        {
+            "name": "Desportivo Brasil",
+            "conference": "Paulista",
+            "rating": 64
+        },
+        {
+            "name": "União Suzano",
+            "conference": "Paulista",
+            "rating": 63
+        },
+        {
+            "name": "Hercílio Luz",
+            "conference": "Sul",
+            "rating": 57
+        },
+        {
+            "name": "Camboriú",
+            "conference": "Sul",
+            "rating": 64
+        },
+        {
+            "name": "Concórdia",
+            "conference": "Sul",
+            "rating": 61
+        },
+        {
+            "name": "Barra-SC",
+            "conference": "Sul",
+            "rating": 60
+        },
+        {
+            "name": "FC Cascavel",
+            "conference": "Sul",
+            "rating": 58
+        },
+        {
+            "name": "Cianorte",
+            "conference": "Sul",
+            "rating": 61
+        },
+        {
+            "name": "Azuriz",
+            "conference": "Sul",
+            "rating": 61
+        },
+        {
+            "name": "Rio Branco-PR",
+            "conference": "Sul",
+            "rating": 60
+        },
+        {
+            "name": "Avenida",
+            "conference": "Sul",
+            "rating": 63
+        },
+        {
+            "name": "Novo Hamburgo",
+            "conference": "Sul",
+            "rating": 61
+        },
+        {
+            "name": "Aimoré",
+            "conference": "Sul",
+            "rating": 58
+        },
+        {
+            "name": "Esportivo",
+            "conference": "Sul",
+            "rating": 61
+        }
+    ]
+}
