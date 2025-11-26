@@ -273,6 +273,135 @@ class UniFUTEngine:
             
             # Ordenar elenco por Overall
             team.players.sort(key=lambda x: x.overall, reverse=True)
+            
+    # --- MÉTODOS DE MATA-MATA (SPRINT D) ---
+
+    def simulate_knockout_stage(self, teams, round_name):
+        """Simula uma rodada de mata-mata e retorna os vencedores e os resultados."""
+        winners = []
+        results = []
+        
+        # Embaralhar para sorteio (exceto se já vier ordenado por chaveamento)
+        # Aqui assumimos sorteio puro para simplificar o MVP
+        random.shuffle(teams)
+        
+        # Garantir número par
+        if len(teams) % 2 != 0:
+            bye_team = teams.pop()
+            winners.append(bye_team)
+            results.append(f"{bye_team.name} avançou (Bye)")
+            
+        for i in range(0, len(teams), 2):
+            t1 = teams[i]
+            t2 = teams[i+1]
+            
+            # Simula jogo único (com pênaltis se empatar)
+            g1, g2 = self.simulate_match(t1, t2, is_knockout=True)
+            
+            winner = t1 if g1 > g2 else t2
+            winners.append(winner)
+            results.append(f"{t1.name} {g1} x {g2} {t2.name}")
+            
+        return winners, results
+
+    def run_copa_brasil(self):
+        """
+        Simulação da Copa do Brasil conforme Manual (Página 45/46):
+        - Fase 1: College 2 (Piores)
+        - Fase 2: Vencedores F1 + College 1 + Resto College 2
+        - Fase 3: Vencedores F2 + LNF (Exceto Seeds)
+        - Fase 4 (Oitavas): Vencedores F3 + Seeds LNF (Top 8)
+        """
+        log = {}
+        
+        # 1. Seleção dos Times
+        college2 = self.get_teams_by_league("College 2")
+        college1 = self.get_teams_by_league("College 1")
+        lnf = self.get_teams_by_league("LNF")
+        
+        # LNF Seeds (Top 8 campanha anterior/rating) -> Entram na Fase 4
+        lnf_sorted = sorted(lnf, key=lambda x: x.rating, reverse=True)
+        lnf_seeds = lnf_sorted[:8]
+        lnf_normal = lnf_sorted[8:]
+        
+        # FASE 1: Preliminar (Apenas 64 times do College 2 jogam para afunilar)
+        f1_teams = college2[:64] 
+        f1_winners, f1_res = self.simulate_knockout_stage(f1_teams, "Fase 1")
+        log["Fase 1 (Preliminar College)"] = f1_res
+        
+        # FASE 2: Mistura Geral (Vencedores F1 + Resto College 2 + College 1)
+        # Total esperado: 32 (vencedores F1) + 32 (resto C2) + 96 (C1) = 160 times -> 80 jogos
+        # Simplificação MVP: Vamos pegar 64 times aleatórios dessa mistura para avançar
+        pool_f2 = f1_winners + college2[64:] + college1
+        f2_teams = random.sample(pool_f2, 64) # Força bruta para caber na chave
+        f2_winners, f2_res = self.simulate_knockout_stage(f2_teams, "Fase 2")
+        log["Fase 2 (Geral College)"] = f2_res
+        
+        # FASE 3: Entrada da LNF (32 Vencedores F2 + 24 LNF Normal = 56 times? Ajuste matemático necessário)
+        # Ajuste para chave perfeita de Oitavas (precisamos de 8 vencedores na Fase 3 para somar aos 8 seeds = 16)
+        # Então Fase 3 precisa de 16 times (8 jogos).
+        # Vamos pegar os 8 melhores da Fase 2 e colocar contra 8 da LNF Normal
+        f3_teams = f2_winners[:8] + lnf_normal[:8]
+        f3_winners, f3_res = self.simulate_knockout_stage(f3_teams, "Fase 3")
+        log["Fase 3 (Entrada LNF)"] = f3_res
+        
+        # FASE 4: OITAVAS DE FINAL (8 Vencedores F3 + 8 Seeds LNF)
+        last_16 = f3_winners + lnf_seeds
+        
+        # Mata-mata até o fim
+        stages = ["Oitavas de Final", "Quartas de Final", "Semifinal", "Grande Final"]
+        current_teams = last_16
+        
+        for stage in stages:
+            winners, res = self.simulate_knockout_stage(current_teams, stage)
+            log[stage] = res
+            current_teams = winners
+            
+        return log, current_teams[0] # Retorna log e campeão
+
+    def run_regional_bowls(self):
+        """
+        Simula os Bowls Regionais (Campeões de Conferência se enfrentam)
+        Manual Página 34/105 - Rotação Regional
+        """
+        college_teams = self.get_teams_by_league("College") # Pega todos (1 e 2)
+        
+        # Agrupar por conferência e pegar o melhor rating de cada
+        confs = {}
+        for t in college_teams:
+            if t.division not in confs: confs[t.division] = []
+            confs[t.division].append(t)
+            
+        champions = {}
+        for conf_name, teams in confs.items():
+            # Em uma simulação completa, seria o campeão da tabela. 
+            # Aqui usamos o Rating/Sorte como proxy
+            champions[conf_name] = sorted(teams, key=lambda x: x.rating, reverse=True)[0]
+            
+        # Definir confrontos (Rotação fixa conforme manual)
+        # Ex: Amazônica x Nordeste, Sul x Sudeste...
+        matchups = [
+            ("Amazônica", "Nordeste Atlântico", "North Star Bowl"),
+            ("Nordeste Sul", "Centro-Oeste", "Caldeirão Bowl"),
+            ("Sudeste Norte", "Paulista", "Coffee Bowl"),
+            ("Sudeste Sul", "Sul", "Oceanic Bowl")
+        ]
+        
+        results = []
+        for c1, c2, bowl_name in matchups:
+            t1 = champions.get(c1)
+            t2 = champions.get(c2)
+            if t1 and t2:
+                g1, g2 = self.simulate_match(t1, t2, is_knockout=True)
+                winner = t1.name if g1 > g2 else t2.name
+                results.append({
+                    "Bowl": bowl_name,
+                    "Confronto": f"{c1} vs {c2}",
+                    "Placar": f"{t1.name} {g1} x {g2} {t2.name}",
+                    "Campeão": winner
+                })
+                
+        return results
 
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
@@ -469,18 +598,51 @@ with tab_college:
     st.info("A simulação detalhada do College (20 jogos) será implementada na v2 do software.")
 
 with tab_copas:
-    st.header("Copas & Bowls")
-    col_a, col_b = st.columns(2)
+    st.header("Ecossistema de Copas & Bowls 2026")
     
-    with col_a:
-        st.subheader("Copa do Brasil (CBF)")
-        st.write("Integração LNF + College + Qualification League.")
-        st.write("*Formato de 5 Fases definido no manual.*")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("🏆 Copa do Brasil")
+        st.markdown("""
+        **Formato Híbrido (Manual Pág. 45):**
+        * Fases Iniciais: College e Qualification
+        * Fase 3: Entrada da LNF
+        * Fase 4: Entrada dos Seeds (Campeões/Top LNF)
+        """)
         
-    with col_b:
-        st.subheader("Copa da Liga (UniFUT)")
-        st.write("Exclusiva para os 192 times do College.")
-        st.write("*Mata-mata em jogo único com mando do menor.*")
+        if st.button("Simular Copa do Brasil"):
+            if not st.session_state.simulated_lnf:
+                st.error("Simule a LNF primeiro para definir os Seeds!")
+            else:
+                with st.spinner("Simulando as 5 Fases da Copa..."):
+                    log_cdb, campeao_cdb = engine.run_copa_brasil()
+                
+                st.success(f"🎉 CAMPEÃO: {campeao_cdb.name}")
+                
+                # Mostrar fases finais
+                with st.expander("Ver Resultados Completos (Fase a Fase)"):
+                    for fase, jogos in log_cdb.items():
+                        st.write(f"**{fase}**")
+                        for jogo in jogos:
+                            st.caption(jogo)
+                        st.divider()
+    
+    with col2:
+        st.subheader("🥣 Bowls Regionais (College)")
+        st.markdown("""
+        Os campeões de cada Conferência Regional se enfrentam em Bowls temáticos no final do ano.
+        """)
+        
+        if st.button("Simular Bowls Regionais"):
+            bowls_res = engine.run_regional_bowls()
+            
+            for bowl in bowls_res:
+                st.markdown(f"### 🏈 {bowl['Bowl']}")
+                st.write(f"*{bowl['Confronto']}*")
+                st.markdown(f"**{bowl['Placar']}**")
+                st.success(f"Campeão: {bowl['Campeão']}")
+                st.divider()
 
 with tab_draft:
     st.header("Draft UniFUT 2026")
