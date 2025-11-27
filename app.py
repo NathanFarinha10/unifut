@@ -1636,7 +1636,7 @@ elif st.session_state.game_mode == "playing":
                 st.write(log)
 
     # ABAS PRINCIPAIS
-    tab_office, tab_squad, tab_league, tab_market, tab_infra = st.tabs(["🏢 Meu Escritório", "👕 Elenco & Tática", "🌍 O Mundo", "🔁 Mercado". "Infra"])
+    tab_office, tab_squad, tab_league, tab_market, tab_infra = st.tabs(["🏢 Meu Escritório", "👕 Elenco & Tática", "🌍 O Mundo", "🔁 Mercado", "Infra"])
     
     with tab_office:
         # Próximo Jogo
