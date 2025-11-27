@@ -1088,78 +1088,159 @@ class UniFUTEngine:
             
             team.coach = Coach(name, style, age)
 
+    # --- NOVO: GERADOR DE CALENDÁRIO BASEADO NO SEU CRONOGRAMA ---
     def generate_full_calendar(self):
-        """Preenche o calendário anual (Semanas 1-52) conforme especificação"""
-        self.calendar = Calendar() # Reset
+        """
+        Preenche o calendário anual com a Temporada Regular.
+        Playoffs e Copas são agendados dinamicamente semana a semana.
+        """
+        self.calendar = Calendar() 
         
-        # 1. Agendar LNF (Semanas 21-39)
+        # 1. Agendar LNF Regular Season (Semanas 21 a 39 = 19 datas)
         lnf_teams = self.get_teams_by_league("LNF")
         scheduler_lnf = LNFScheduler(lnf_teams, self.season_year)
-        lnf_matches = scheduler_lnf.generate_schedule()
-        for m in lnf_matches:
-            self.calendar.add_match(m)
+        lnf_matches = scheduler_lnf.generate_schedule() # Gera 19 jogos por time
+        
+        # Distribuir os jogos da LNF nas semanas 21-39
+        # (O scheduler retorna lista plana, precisamos alocar nas semanas)
+        matches_per_week = len(lnf_matches) // 19
+        lnf_week_idx = 21
+        count = 0
+        
+        for match_obj in lnf_matches:
+            # Atualiza a semana do objeto Match
+            match_obj.week = lnf_week_idx
+            self.calendar.add_match(match_obj)
             
-        # 2. Agendar College (Semanas 19-43)
-        # (Simplificação: Gerar jogos aleatórios para College por enquanto)
+            count += 1
+            if count >= matches_per_week and lnf_week_idx < 39:
+                count = 0
+                lnf_week_idx += 1
+
+        # 2. Agendar College Regular Season (Semanas 19 a 43)
+        # 25 semanas de calendário para o College
         college_teams = self.get_teams_by_league("College")
-        for week in range(19, 44):
-            # Exemplo: 10 jogos aleatórios por semana no College para dar vida
-            # (Na versão final, usaríamos um scheduler real para os 192 times)
-            daily_pool = random.sample(college_teams, 20)
-            for i in range(0, 20, 2):
-                self.calendar.add_match(Match(daily_pool[i], daily_pool[i+1], week, "College Season"))
+        
+        for w in range(19, 44):
+            # Simula rodada cheia do College (simplificado para MVP)
+            # Pegamos times aleatórios para jogar a cada semana
+            daily_pool = random.sample(college_teams, 40) # 20 jogos por semana
+            for i in range(0, 40, 2):
+                m = Match(daily_pool[i], daily_pool[i+1], w, "College Season")
+                self.calendar.add_match(m)
 
-        # 3. Copas (Libertadores, Sula, Copa do Brasil)
-        # (Podemos adicionar placeholders aqui ou gerar dinamicamente quando a semana chegar)
-
-    # --- CORE: AVANÇAR SEMANA (FRANCHISE MODE) ---
+    # --- CÉREBRO DO MODO FRANCHISE ---
     def advance_week(self):
-        """Processa a semana atual e avança para a próxima"""
+        """
+        Processa a semana atual, simula jogos e agenda eventos futuros dinamicamente.
+        """
         logs = []
         logs.append(f"📅 **Processando Semana {self.current_week}...**")
         
-        # 1. Simular Jogos da Semana
+        # 1. EVENTOS DE AGENDAMENTO (Gatilhos de Calendário)
+        
+        # Copa do Brasil (Semanas 9-17)
+        if self.current_week == 9:
+            logs.append("🏆 **Início da Copa do Brasil!** (Fase 1)")
+            # Aqui entraria a lógica de criar os jogos da Fase 1 e adicionar no calendar da semana 9
+            # (Para MVP, vamos apenas simular o texto/log)
+            
+        # LNF Playoffs (Semana 40 - Wild Card)
+        if self.current_week == 40:
+            logs.append("🔥 **Fim da Temporada Regular LNF!** Definindo Playoffs...")
+            self._schedule_lnf_playoffs_wildcard()
+            
+        # LNF Playoffs (Semana 41 - Divisional)
+        if self.current_week == 41:
+            self._schedule_lnf_playoffs_divisional()
+            
+        # LNF Playoffs (Semana 42 - Conference Finals)
+        if self.current_week == 42:
+            self._schedule_lnf_playoffs_conf_finals()
+            
+        # Super Bowl (Semana 44)
+        if self.current_week == 44:
+            self._schedule_lnf_superbowl()
+
+        # Draft (Semana 48)
+        if self.current_week == 48:
+            logs.append("🎓 **Semana do Draft UniFUT!**")
+            # Poderia gatilhar o draft automático aqui se o jogador não interagir
+
+        # 2. SIMULAR JOGOS AGENDADOS PARA HOJE
         matches = self.calendar.get_matches_for_week(self.current_week)
+        
         if matches:
             for match in matches:
                 if not match.played:
+                    # Simulação
                     g1, g2, evs = self.simulate_match(match.home_team, match.away_team, return_events=True)
                     
-                    # Salvar resultado no objeto Match
+                    # Persistência
                     match.home_score = g1
                     match.away_score = g2
                     match.narrative = evs
                     match.played = True
                     
-                    # Atualizar tabela do time
-                    self.update_table(match.home_team, match.away_team, g1, g2)
+                    # Atualizar Tabela (apenas se for LNF Regular)
+                    if "LNF" in match.competition and "Playoff" not in match.competition:
+                        self.update_table(match.home_team, match.away_team, g1, g2)
                     
-                    # Evolução de XP dos jogadores (Sprint 7.0 integrada)
-                    # (Poderíamos chamar evolve() aqui, mas deixamos pro fim do ano pra não ficar pesado)
+                    # Evolução de Jogadores (XP Semanal)
+                    # (Pode ser leve, ex: apenas titulares ganham xp)
             
-            logs.append(f"✅ {len(matches)} jogos simulados.")
+            logs.append(f"✅ {len(matches)} partidas realizadas nesta semana.")
         else:
-            logs.append("💤 Nenhum jogo agendado para esta semana.")
+            logs.append("💤 Nenhum jogo oficial agendado.")
 
-        # 2. Eventos de Calendário Específicos (Gatilhos)
-        if self.current_week == 40:
-            logs.append("🔥 **Fim da Temporada Regular LNF!** Playoffs definidos.")
-            # Aqui chamaríamos a função para gerar a árvore de playoffs e agendar nas semanas 41-44
-            
-        if self.current_week == 48:
-            logs.append("🎓 **Semana do Draft!** As escolhas estão abertas.")
-
-        # 3. Processamento Financeiro Semanal (Salários pingados?)
-        # Por enquanto mantemos anual, mas aqui entraria a lógica de fluxo de caixa
-
-        # 4. Avançar
+        # 3. AVANÇAR TEMPO
         self.current_week += 1
+        
+        # Virada de Ano
         if self.current_week > 52:
             self.current_week = 1
-            logs.append("🎆 **Ano Novo!** Iniciando nova temporada...")
-            # Aqui chamaríamos o advance_season() completo
+            logs.append("🎆 **Fim do Ano!** Iniciando nova temporada...")
+            # Resetar calendário
+            self.generate_full_calendar()
             
         return logs
+
+    # --- MÉTODOS AUXILIARES DE PLAYOFF (AGENDAMENTO DINÂMICO) ---
+    
+    def _schedule_lnf_playoffs_wildcard(self):
+        # 1. Identificar classificados
+        lnf_teams = self.get_teams_by_league("LNF")
+        # Separar conferências
+        conf_br = sorted([t for t in lnf_teams if t.conference == "Brasileira"], key=lambda x: x.points, reverse=True)
+        conf_nac = sorted([t for t in lnf_teams if t.conference == "Nacional"], key=lambda x: x.points, reverse=True)
+        
+        # Top 7 de cada lado
+        seeds_br = conf_br[:7]
+        seeds_nac = conf_nac[:7]
+        
+        # Agendar Wild Card (Seeds 2x7, 3x6, 4x5) para a Semana 40 (ou 41 se preferir)
+        # O Seed 1 folga (Bye)
+        matchups = [
+            (seeds_br[1], seeds_br[6]), (seeds_br[2], seeds_br[5]), (seeds_br[3], seeds_br[4]),
+            (seeds_nac[1], seeds_nac[6]), (seeds_nac[2], seeds_nac[5]), (seeds_nac[3], seeds_nac[4])
+        ]
+        
+        for home, away in matchups:
+            m = Match(home, away, self.current_week, "LNF Playoff - Wild Card")
+            self.calendar.add_match(m)
+
+    def _schedule_lnf_playoffs_divisional(self):
+        # Lógica: Pegar vencedores da semana anterior + Seed 1 e agendar
+        # Para simplificar o código aqui, vamos assumir que o advance_week já rodou os jogos
+        # e vamos buscar no histórico da semana passada quem ganhou.
+        pass # (Implementação completa exigiria rastrear chaveamento, deixamos genérico por enquanto)
+
+    def _schedule_lnf_playoffs_conf_finals(self):
+        pass
+
+    def _schedule_lnf_superbowl(self):
+        # Agendar final
+        pass
 
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
@@ -1220,43 +1301,6 @@ def initialize_system():
     return engine
 
 # --- INTERFACE E SIMULAÇÃO ---
-
-def run_lnf_regular_season(engine):
-    lnf_teams = engine.get_teams_by_league("LNF")
-    
-    # 1. Resetar status
-    for t in lnf_teams: t.reset_stats()
-    
-    # 2. Gerar Calendário Oficial (19 jogos)
-    st.toast("Gerando calendário oficial de 19 jogos...")
-    scheduler = LNFScheduler(lnf_teams, engine.season_year)
-    schedule = scheduler.generate_schedule()
-    
-    # 3. Simular Partidas
-    progress_bar = st.progress(0)
-    total_games = len(schedule)
-    
-    for i, (home, away, match_type) in enumerate(schedule):
-        # Simulação
-        g_h, g_a = engine.simulate_match(home, away)
-        
-        # Atualizar tabela
-        engine.update_table(home, away, g_h, g_a)
-        
-        # Atualizar barra de progresso
-        if i % 10 == 0:
-            progress_bar.progress((i + 1) / total_games)
-            
-    progress_bar.progress(100)
-    st.toast("Temporada Regular LNF (19 Rodadas) Concluída!", icon="✅")
-    
-    # Debug: Verificar se todos jogaram 19 jogos
-    # (Opcional - pode remover na versão final)
-    with st.expander("Auditoria de Calendário (Debug)"):
-        for t in lnf_teams:
-            if t.games_played != 19:
-                st.error(f"ERRO: {t.name} jogou {t.games_played} vezes!")
-        st.write(f"Total de jogos processados: {total_games}")
 
 def get_standings_df(teams):
     data = []
@@ -1324,56 +1368,36 @@ if uploaded_file is not None:
     except Exception as e:
         st.sidebar.error(f"Erro ao carregar arquivo: {e}")
 
-st.sidebar.divider()
-# ... (continua o resto da sidebar original) ...
-season_year = st.sidebar.number_input("Ano da Temporada", value=2026)
-
-if st.sidebar.button("Simular Temporada Regular LNF"):
-    run_lnf_regular_season(engine)
-    st.session_state.simulated_lnf = True
-
 # --- INTERFACE MODO FRANCHISE ---
 
-# Layout Principal: Dashboard
-st.markdown(f"### 🗓️ Temporada {engine.season_year} | Semana {engine.current_week}/52")
-progress = (engine.current_week / 52)
-st.progress(progress)
+# --- INTERFACE GRÁFICA (MODO FRANCHISE) ---
 
-# Colunas de Controle
-col_dash, col_news = st.columns([1, 2])
+# Sidebar Limpa
+st.sidebar.header(f"🗓️ Semana {engine.current_week} / 52")
+st.sidebar.progress(engine.current_week / 52)
 
-with col_dash:
-    st.subheader("Painel de Controle")
-    
-    # Contexto da Semana
-    if 1 <= engine.current_week <= 19:
-        st.info("🏆 Fase de Copas Continentais (Liberta/Sula)")
-    elif 21 <= engine.current_week <= 39:
-        st.success("⚽ Temporada Regular LNF (Em andamento)")
-    elif 40 <= engine.current_week <= 44:
-        st.warning("🔥 Playoffs da LNF & Super Bowl")
-    elif 45 <= engine.current_week <= 52:
-        st.error("💤 Offseason & Draft")
-    
-    # O BOTÃO MÁGICO
-    if st.button("⏩ SIMULAR SEMANA", type="primary", use_container_width=True):
-        with st.spinner("Processando jogos, finanças e notícias..."):
-            logs = engine.advance_week()
-            st.session_state.logs = logs # Guardar logs na sessão
-            st.rerun()
+# Botão Principal de Ação
+if st.sidebar.button("⏩ SIMULAR SEMANA", type="primary"):
+    with st.spinner("Processando a semana..."):
+        logs = engine.advance_week()
+        st.session_state.logs = logs
+        st.rerun()
 
-with col_news:
-    st.subheader("📰 Notícias da Semana")
-    if "logs" in st.session_state:
+# Botões de Sistema (Save/Load) - Mantidos
+st.sidebar.divider()
+st.sidebar.header("Sistema")
+st.sidebar.download_button("📥 Salvar Jogo", data=engine.to_json(), file_name="save.json", mime="application/json")
+# ... (Upload button logic mantida) ...
+
+# --- ÁREA PRINCIPAL ---
+
+st.title(f"UniFUT - Temporada {engine.season_year}")
+
+# Dashboard de Notícias (Feed da Semana)
+if "logs" in st.session_state:
+    with st.expander("📰 Notícias da Semana (Logs)", expanded=True):
         for log in st.session_state.logs:
             st.write(log)
-            
-    # Mostrar jogos da semana (Resultados ou Agendados)
-    matches_this_week = engine.calendar.get_matches_for_week(engine.current_week - 1) # Mostra da semana que passou
-    if matches_this_week:
-        with st.expander(f"Resultados da Semana {engine.current_week - 1}", expanded=True):
-            for m in matches_this_week:
-                st.write(f"**{m.home_team.name}** {m.home_score} x {m.away_score} **{m.away_team.name}**")
 
 # Abas Principais
 tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history, tab_market = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes", "Histórico", "Mercado"])
