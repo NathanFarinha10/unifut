@@ -1333,43 +1333,6 @@ engine = st.session_state.engine
 if not hasattr(engine, 'history'):
     engine.history = []
 
-# Sidebar
-st.sidebar.header("Controle de Simulação")
-# --- SIDEBAR: SISTEMA DE ARQUIVOS ---
-st.sidebar.header("💾 Sistema")
-
-# 1. Botão de Download (Salvar)
-# Prepara o arquivo na memória
-save_data = engine.to_json()
-st.sidebar.download_button(
-    label="📥 Salvar Jogo (Download .json)",
-    data=save_data,
-    file_name=f"save_unifut_{engine.season_year}.json",
-    mime="application/json",
-    help="Baixe o arquivo para continuar depois."
-)
-
-# 2. Botão de Upload (Carregar)
-uploaded_file = st.sidebar.file_uploader("📤 Carregar Jogo", type=["json"])
-
-if uploaded_file is not None:
-    try:
-        # Ler o arquivo
-        json_str = uploaded_file.getvalue().decode("utf-8")
-        
-        # Botão de confirmação para não carregar acidentalmente
-        if st.sidebar.button("Confirmar Carregamento"):
-            # Recriar a engine com os dados do arquivo
-            st.session_state.engine = UniFUTEngine.load_from_json(json_str)
-            st.session_state.simulated_lnf = False # Resetar estado da UI
-            st.success("Jogo carregado com sucesso! A página irá recarregar.")
-            st.rerun()
-            
-    except Exception as e:
-        st.sidebar.error(f"Erro ao carregar arquivo: {e}")
-
-# --- INTERFACE MODO FRANCHISE ---
-
 # --- INTERFACE GRÁFICA (MODO FRANCHISE) ---
 
 # Sidebar Limpa
