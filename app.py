@@ -265,10 +265,21 @@ class Team:
         self.logo = LOGO_URLS.get(name, GENERIC_LOGO)
         self.coach = None
         
-        # Controle Humano (SPRINT 10.0)
-        self.is_human = False        # True se o usuário controla
-        self.next_tactic = None      # Tática definida pelo usuário para o próximo jogo
+        # Controle Humano
+        self.is_human = False
+        self.next_tactic = None
         
+        # INFRAESTRUTURA (SPRINT 12.0)
+        # Níveis de 1 a 10
+        if "LNF" in league:
+            self.stadium_level = random.randint(5, 9)
+            self.training_level = random.randint(6, 9)
+            self.youth_level = random.randint(5, 9)
+        else:
+            self.stadium_level = random.randint(1, 4)
+            self.training_level = random.randint(1, 3)
+            self.youth_level = random.randint(1, 4)
+            
         # Economia
         self.budget = 0
         self.payroll = 0
@@ -279,6 +290,23 @@ class Team:
         self.wins = 0; self.losses = 0; self.draws = 0; self.points = 0
         self.goals_for = 0; self.goals_against = 0
         
+    def get_upgrade_cost(self, facility_type):
+        """Retorna o custo para subir pro próximo nível"""
+        current_level = getattr(self, f"{facility_type}_level")
+        if current_level >= 10: return None
+        
+        # Custo Exponencial: Nível 2 custa 2M, Nível 10 custa 100M
+        return int((current_level ** 2.5) * 500_000)
+
+    def upgrade_facility(self, facility_type):
+        cost = self.get_upgrade_cost(facility_type)
+        if cost and self.budget >= cost:
+            self.budget -= cost
+            current_val = getattr(self, f"{facility_type}_level")
+            setattr(self, f"{facility_type}_level", current_val + 1)
+            return True, f"Obra concluída! {facility_type.capitalize()} subiu para Nível {current_val + 1}."
+        return False, "Saldo insuficiente ou nível máximo atingido."
+
     def update_financials(self):
         self.payroll = sum(p.wage for p in self.players)
     
@@ -291,13 +319,14 @@ class Team:
     @property
     def games_played(self): return self.wins + self.losses + self.draws
 
-    # Serialização Atualizada (Salvar quem é o humano)
+    # Serialização Atualizada (Salvar Infra)
     def to_dict(self):
         return {
             "name": self.name, "league": self.league, "conference": self.conference,
             "division": self.division, "rating": self.rating,
             "budget": self.budget, "salary_cap": self.salary_cap, "revenue": self.revenue,
-            "is_human": self.is_human, "next_tactic": self.next_tactic, # <--- NOVO
+            "is_human": self.is_human, "next_tactic": self.next_tactic,
+            "stadium_level": self.stadium_level, "training_level": self.training_level, "youth_level": self.youth_level, # <--- NOVO
             "players": [p.to_dict() for p in self.players]
         }
 
@@ -307,8 +336,11 @@ class Team:
         t.budget = data.get("budget", 0)
         t.salary_cap = data.get("salary_cap", 0)
         t.revenue = data.get("revenue", 0)
-        t.is_human = data.get("is_human", False) # <--- NOVO
-        t.next_tactic = data.get("next_tactic", None) # <--- NOVO
+        t.is_human = data.get("is_human", False)
+        t.next_tactic = data.get("next_tactic", None)
+        t.stadium_level = data.get("stadium_level", 1) # <--- NOVO
+        t.training_level = data.get("training_level", 1) # <--- NOVO
+        t.youth_level = data.get("youth_level", 1) # <--- NOVO
         t.players = [Player.from_dict(p_data) for p_data in data.get("players", [])]
         t.update_financials()
         return t
