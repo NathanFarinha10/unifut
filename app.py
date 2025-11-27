@@ -200,6 +200,10 @@ class Team:
         self.logo = LOGO_URLS.get(name, GENERIC_LOGO)
         self.coach = None
         
+        # Controle Humano (SPRINT 10.0)
+        self.is_human = False        # True se o usuário controla
+        self.next_tactic = None      # Tática definida pelo usuário para o próximo jogo
+        
         # Economia
         self.budget = 0
         self.payroll = 0
@@ -207,12 +211,8 @@ class Team:
         self.salary_cap = 0
         
         # Stats
-        self.wins = 0
-        self.losses = 0
-        self.draws = 0
-        self.points = 0
-        self.goals_for = 0
-        self.goals_against = 0
+        self.wins = 0; self.losses = 0; self.draws = 0; self.points = 0
+        self.goals_for = 0; self.goals_against = 0
         
     def update_financials(self):
         self.payroll = sum(p.wage for p in self.players)
@@ -226,13 +226,13 @@ class Team:
     @property
     def games_played(self): return self.wins + self.losses + self.draws
 
-    # --- SERIALIZAÇÃO ---
+    # Serialização Atualizada (Salvar quem é o humano)
     def to_dict(self):
         return {
             "name": self.name, "league": self.league, "conference": self.conference,
             "division": self.division, "rating": self.rating,
-            "budget": self.budget, "salary_cap": self.salary_cap,
-            "revenue": self.revenue,
+            "budget": self.budget, "salary_cap": self.salary_cap, "revenue": self.revenue,
+            "is_human": self.is_human, "next_tactic": self.next_tactic, # <--- NOVO
             "players": [p.to_dict() for p in self.players]
         }
 
@@ -242,30 +242,11 @@ class Team:
         t.budget = data.get("budget", 0)
         t.salary_cap = data.get("salary_cap", 0)
         t.revenue = data.get("revenue", 0)
+        t.is_human = data.get("is_human", False) # <--- NOVO
+        t.next_tactic = data.get("next_tactic", None) # <--- NOVO
         t.players = [Player.from_dict(p_data) for p_data in data.get("players", [])]
         t.update_financials()
         return t
-        
-    def update_financials(self):
-        # Recalcula folha salarial baseada no elenco atual
-        self.payroll = sum(p.wage for p in self.players)
-    
-    def reset_stats(self):
-        self.wins = 0
-        self.losses = 0
-        self.draws = 0
-        self.points = 0
-        self.goals_for = 0
-        self.goals_against = 0
-        # Não resetamos dinheiro, pois acumula entre temporadas
-
-    @property
-    def goal_diff(self):
-        return self.goals_for - self.goals_against
-
-    @property
-    def games_played(self):
-        return self.wins + self.losses + self.draws
 
 class LNFScheduler:
     def __init__(self, teams, year):
@@ -391,8 +372,8 @@ class UniFUTEngine:
         tactical_msg = ""
         
         if team_a.coach and team_b.coach:
-            s1 = team_a.coach.style
-            s2 = team_b.coach.style
+            s1 = team_a.next_tactic if team_a.is_human and team_a.next_tactic else (team_a.coach.style if team_a.coach else "Equilibrado")
+            s2 = team_b.next_tactic if team_b.is_human and team_b.next_tactic else (team_b.coach.style if team_b.coach else "Equilibrado")
             
             # Regras de Vantagem
             # Contra-Ataque > Posse
@@ -542,6 +523,21 @@ class UniFUTEngine:
             
             # Ordenar elenco por Overall
             team.players.sort(key=lambda x: x.overall, reverse=True)
+
+    def set_user_team(self, team_name):
+        """Define qual time é controlado pelo usuário"""
+        for t in self.teams:
+            t.is_human = False # Reseta anteriores
+            if t.name == team_name:
+                t.is_human = True
+                return t
+        return None
+        
+    def get_user_team(self):
+        """Retorna o objeto do time humano, se existir"""
+        for t in self.teams:
+            if t.is_human: return t
+        return None
             
     # --- MÉTODOS DE MATA-MATA (SPRINT D) ---
 
@@ -1333,181 +1329,160 @@ engine = st.session_state.engine
 if not hasattr(engine, 'history'):
     engine.history = []
 
-# --- INTERFACE GRÁFICA (MODO FRANCHISE) ---
+# --- LÓGICA DE NAVEGAÇÃO E UI ---
 
-# Sidebar Limpa
-st.sidebar.header(f"🗓️ Semana {engine.current_week} / 52")
-st.sidebar.progress(engine.current_week / 52)
-
-# Botão Principal de Ação
-if st.sidebar.button("⏩ SIMULAR SEMANA", type="primary"):
-    with st.spinner("Processando a semana..."):
-        logs = engine.advance_week()
-        st.session_state.logs = logs
-        st.rerun()
-
-# Botões de Sistema (Save/Load) - Mantidos
-st.sidebar.divider()
-st.sidebar.header("Sistema")
-st.sidebar.download_button("📥 Salvar Jogo", data=engine.to_json(), file_name="save.json", mime="application/json")
-# ... (Upload button logic mantida) ...
-
-# --- ÁREA PRINCIPAL ---
-
-st.title(f"UniFUT - Temporada {engine.season_year}")
-
-# Dashboard de Notícias (Feed da Semana)
-if "logs" in st.session_state:
-    with st.expander("📰 Notícias da Semana (Logs)", expanded=True):
-        for log in st.session_state.logs:
-            st.write(log)
-
-# Abas Principais
-tab_jogos, tab_classificacao, tab_finance, tab_clubs, tab_market = st.tabs(["Jogos", "Classificação", "💰 Finanças", "Clubes", "Mercado"])
-
-with tab_jogos:
-    st.header(f"Jogos da Semana {engine.current_week - 1}")
-    last_week_matches = engine.calendar.get_matches_for_week(engine.current_week - 1)
-    
-    if last_week_matches:
-        for m in last_week_matches:
-            st.write(f"🏠 {m.home_team.name} {m.home_score} x {m.away_score} {m.away_team.name} ✈️")
-            with st.expander("Detalhes"):
-                for line in m.narrative: st.caption(line)
-            st.divider()
+# Inicialização de Estado para Navegação
+if "game_mode" not in st.session_state:
+    # Verifica se já existe um time humano carregado (ex: via Load Game)
+    user_team = engine.get_user_team()
+    if user_team:
+        st.session_state.game_mode = "playing"
+        st.session_state.user_team_name = user_team.name
     else:
-        st.info("Nenhum jogo realizado na semana anterior.")
+        st.session_state.game_mode = "setup"
 
-with tab_classificacao:
-    st.header(f"Classificação LNF - {engine.season_year}") # Correção aplicada aqui também
-    lnf_teams = engine.get_teams_by_league("LNF")
-    df = get_standings_df(lnf_teams)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+# --- TELA 1: SELEÇÃO DE TIME (SETUP) ---
+if st.session_state.game_mode == "setup":
+    st.title("UniFUT 26 - Bem-vindo ao Mundo do Futebol")
+    st.markdown("### Escolha seu destino")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.info("🏆 **Elite (LNF)**\n\nAssuma uma potência, gerencie orçamentos milionários e brigue pelo Super Bowl.")
+        lnf_opts = [t.name for t in engine.get_teams_by_league("LNF")]
+        choice_lnf = st.selectbox("Times LNF", lnf_opts)
+        
+        if st.button("Assumir Time da LNF"):
+            engine.set_user_team(choice_lnf)
+            st.session_state.user_team_name = choice_lnf
+            st.session_state.game_mode = "playing"
+            st.rerun()
+            
+    with col2:
+        st.success("🎓 **Base (College)**\n\nPegue um clube tradicional, revele talentos para o Draft e conquiste o país.")
+        college_opts = [t.name for t in engine.get_teams_by_league("College")]
+        choice_col = st.selectbox("Times College", college_opts)
+        
+        if st.button("Assumir Time do College"):
+            engine.set_user_team(choice_col)
+            st.session_state.user_team_name = choice_col
+            st.session_state.game_mode = "playing"
+            st.rerun()
 
-with tab_finance:
-    st.header("Painel Financeiro & Fair Play")
-    
-    # Métricas Gerais
-    lnf_teams = engine.get_teams_by_league("LNF")
-    avg_payroll = np.mean([t.payroll for t in lnf_teams])
-    
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Teto Salarial LNF", "R$ 350.0M")
-    m2.metric("Média de Folha LNF", f"R$ {avg_payroll/1e6:.1f}M")
-    m3.metric("Pool de TV Estimado", "R$ 2.5B")
-    
     st.divider()
-    
-    # Tabela Financeira LNF
-    st.subheader("Saúde Financeira - LNF")
-    fin_data = []
-    for t in lnf_teams:
-        cap_usage = (t.payroll / t.salary_cap) * 100
-        status = "🟢 OK" if cap_usage <= 100 else "🔴 Multa"
-        
-        fin_data.append({
-            "Time": t.name,
-            "Orçamento (Caixa)": f"R$ {t.budget/1e6:.1f}M",
-            "Folha Anual": f"R$ {t.payroll/1e6:.1f}M",
-            "Uso do Cap": f"{cap_usage:.1f}%",
-            "Status": status,
-            "Receitas TV/Prêmios": f"R$ {t.revenue/1e6:.1f}M"
-        })
-    
-    df_fin = pd.DataFrame(fin_data).sort_values("Uso do Cap", ascending=False)
-    st.dataframe(df_fin, use_container_width=True)
-    
-    # Botão para Distribuir Dinheiro (Pós-Temporada)
-    if st.button("💰 Processar Pagamentos de TV e Prêmios (Final de Temporada)"):
-        if not st.session_state.simulated_lnf:
-            st.error("Simule a temporada primeiro para calcular as cotas de performance!")
-        else:
-            engine.distribute_tv_rights()
-            st.success("Receitas distribuídas! Confira a coluna 'Receitas' atualizada na tabela acima.")
-            st.balloons()
+    st.markdown("*Ou carregue um jogo salvo na barra lateral.*")
 
-with tab_clubs:
-    st.header("Raio-X dos Clubes")
+# --- TELA 2: DASHBOARD DO JOGO (PLAYING) ---
+elif st.session_state.game_mode == "playing":
     
-    all_teams = engine.teams
-    team_names = sorted([t.name for t in all_teams])
+    # Recuperar objeto do time do usuário
+    my_team = engine.get_user_team()
     
-    selected_team_name = st.selectbox("Escolha um clube para analisar:", team_names)
+    # Sidebar
+    st.sidebar.image(my_team.logo, width=100)
+    st.sidebar.markdown(f"**{my_team.name}**")
+    st.sidebar.caption(f"Técnico: Você")
+    st.sidebar.divider()
     
-    # Buscar objeto do time
-    team = next((t for t in all_teams if t.name == selected_team_name), None)
+    st.sidebar.header(f"🗓️ Semana {engine.current_week} / 52")
+    st.sidebar.progress(engine.current_week / 52)
+
+    if st.sidebar.button("⏩ SIMULAR SEMANA", type="primary"):
+        with st.spinner("O mundo do futebol está girando..."):
+            logs = engine.advance_week()
+            st.session_state.logs = logs
+            st.rerun()
+
+    st.sidebar.divider()
+    st.sidebar.header("Sistema")
+    st.sidebar.download_button("📥 Salvar Carreira", data=engine.to_json(), file_name=f"save_{my_team.name}.json", mime="application/json")
     
-    if team:
-        col_profile, col_stats = st.columns([1, 3])
+    # --- ÁREA PRINCIPAL ---
+    st.title(f"Painel do Treinador")
+    
+    # Feed de Notícias
+    if "logs" in st.session_state:
+        with st.expander("📰 Notícias da Semana", expanded=False):
+            for log in st.session_state.logs:
+                st.write(log)
+
+    # ABAS PRINCIPAIS
+    tab_office, tab_squad, tab_league, tab_market = st.tabs(["🏢 Meu Escritório", "👕 Elenco & Tática", "🌍 O Mundo", "🔁 Mercado"])
+    
+    with tab_office:
+        # Próximo Jogo
+        matches = engine.calendar.get_matches_for_week(engine.current_week)
+        my_match = next((m for m in matches if m.home_team == my_team or m.away_team == my_team), None)
         
-        with col_profile:
-            st.image(team.logo, width=150)
-            st.markdown(f"**{team.name}**")
-            st.caption(f"{team.league} - {team.division}")
-            if team.coach:
-                st.info(f"👔 Técnico: {team.coach.name}\n\nEstilo: {team.coach.style}")
-            st.metric("Rating Geral", team.rating)
-            st.metric("Orçamento", f"R$ {team.budget/1e6:.1f}M")
-            
-        with col_stats:
-            st.subheader("Elenco Principal")
-            if len(team.players) > 0:
-                roster_data = []
-                for p in team.players:
-                    # Formatação visual da evolução
-                    evo_str = ""
-                    if p.last_evolution > 0: evo_str = f" (+{p.last_evolution}) 🟢"
-                    elif p.last_evolution < 0: evo_str = f" ({p.last_evolution}) 🔻"
-                    else: evo_str = " (-)"
-                    
-                    roster_data.append({
-                        "Nome": p.name, 
-                        "Pos": p.position, 
-                        "Idade": p.age, 
-                        "Ovr": f"{p.overall}{evo_str}", # Exibe: 82 (+2) 🟢
-                        "Valor": f"R$ {p.market_value/1e6:.1f}M",
-                        "Contrato": f"{p.contract_years} anos"
-                    })
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Orçamento", f"R$ {my_team.budget/1e6:.1f}M")
+        c2.metric("Rating", my_team.rating)
+        c3.metric("Confiança da Diretoria", "Estável") # Placeholder visual
+        
+        st.divider()
+        
+        col_game, col_tac = st.columns(2)
+        
+        with col_game:
+            st.subheader("Próximo Desafio")
+            if my_match:
+                opponent = my_match.away_team if my_match.home_team == my_team else my_match.home_team
+                st.markdown(f"### 🆚 {opponent.name}")
+                st.write(f"Competição: {my_match.competition}")
+                st.image(opponent.logo, width=80)
                 
-                st.dataframe(pd.DataFrame(roster_data), height=300, use_container_width=True)
+                # Scouting Report Básico
+                if opponent.coach:
+                    st.info(f"O técnico adversário ({opponent.coach.name}) costuma jogar em: **{opponent.coach.style}**")
             else:
-                st.info("Elenco ainda não gerado.")
-                
-            st.subheader("Desempenho na Temporada")
-            st.write(f"**Jogos:** {team.games_played} | **Vitórias:** {team.wins} | **Gols Pró:** {team.goals_for}")
-            
-            # Botão para Jogo de Exibição
-            st.divider()
-            opponent_name = st.selectbox("Escolha adversário para Amistoso:", [t for t in team_names if t != team.name])
-            if st.button(f"Jogar Amistoso: {team.name} vs {opponent_name}"):
-                opp = next((t for t in all_teams if t.name == opponent_name), None)
-                
-                # Simular com Narrativa!
-                g1, g2, events = engine.simulate_match(team, opp, return_events=True)
-                
-                st.markdown(f"### Placar Final: {team.name} {g1} x {g2} {opp.name}")
-                with st.expander("📺 Ver Melhores Momentos (Minuto a Minuto)", expanded=True):
-                    for event in events:
-                        st.write(event)
+                st.info("Sem jogos agendados para esta semana. Aproveite para treinar.")
 
-with tab_market:
-    st.header("Mercado da Bola 🔁")
-    st.markdown("Acompanhe as movimentações financeiras, contratações e o fluxo de atletas.")
-    
-    if st.button("💰 Abrir Janela de Transferências (Simular Negociações)"):
-        if not st.session_state.simulated_lnf:
-            st.warning("Recomendado simular a temporada antes para que os times tenham receitas.")
-        
-        with st.spinner("Negociando contratos... GM IA trabalhando..."):
-            transfers = engine.run_transfer_window()
-        
-        if transfers:
-            st.success(f"Janela Fechada! {len(transfers)} negociações realizadas.")
+        with col_tac:
+            st.subheader("📋 Prancheta Tática")
+            st.write("Defina como seu time vai se comportar em campo.")
             
-            # Exibir as Top 10 mais caras
-            # Ordenar por valor (string parsing simples ou armazenar valor cru no log seria melhor, mas ok)
-            st.subheader("🔥 Principais Transferências")
-            df_transfers = pd.DataFrame(transfers)
-            st.dataframe(df_transfers, use_container_width=True)
-        else:
-            st.info("O mercado estava morno. Nenhuma grande negociação ocorreu (talvez falta de orçamento?).")
+            tactics = ["Equilibrado", "Posse de Bola ⚽", "Contra-Ataque ⚡", "Retranca 🛡️", "Gegenpress 🏃"]
+            current_tac = my_team.next_tactic if my_team.next_tactic else "Equilibrado"
+            
+            # Index para o selectbox
+            try: idx = tactics.index(current_tac)
+            except: idx = 0
+            
+            chosen_tactic = st.selectbox("Estilo de Jogo", tactics, index=idx)
+            
+            if chosen_tactic != my_team.next_tactic:
+                my_team.next_tactic = chosen_tactic
+                st.success(f"Tática definida: {chosen_tactic}")
+            
+            st.caption("Dica: Contra-Ataque vence Posse; Posse vence Retranca; Retranca vence Contra-Ataque.")
+
+    with tab_squad:
+        st.subheader("Gerenciamento de Elenco")
+        roster_data = [{
+            "Nome": p.name, "Pos": p.position, "Ovr": p.overall, 
+            "Idade": p.age, "Contrato": p.contract_years, 
+            "Valor": f"R$ {p.market_value/1e6:.1f}M"
+        } for p in my_team.players]
+        st.dataframe(pd.DataFrame(roster_data), use_container_width=True)
+
+    with tab_league:
+        st.subheader("Classificação LNF")
+        lnf_teams = engine.get_teams_by_league("LNF")
+        st.dataframe(get_standings_df(lnf_teams), use_container_width=True)
+        
+        st.divider()
+        st.subheader("Resultados da Semana Anterior")
+        last_matches = engine.calendar.get_matches_for_week(engine.current_week - 1)
+        if last_matches:
+            for m in last_matches:
+                st.text(f"{m.home_team.name} {m.home_score} x {m.away_score} {m.away_team.name}")
+
+    with tab_market:
+        st.subheader("Mercado de Transferências")
+        if st.button("Abrir Central de Negociações (Simular IA)"):
+             transfers = engine.run_transfer_window()
+             if transfers:
+                 st.dataframe(pd.DataFrame(transfers))
+             else:
+                 st.info("Nenhuma negociação relevante nesta semana.")
