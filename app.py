@@ -1509,8 +1509,8 @@ elif st.session_state.game_mode == "playing":
     st.sidebar.progress(engine.current_week / 52)
 
     if st.session_state.pending_event:
-    st.sidebar.warning("⚠️ Evento Pendente!")
-    st.sidebar.info("Resolva a situação na tela principal para continuar.")
+        st.sidebar.warning("⚠️ Evento Pendente!")
+        st.sidebar.info("Resolva a situação na tela principal para continuar.")
     else:
         if st.sidebar.button("⏩ SIMULAR SEMANA", type="primary"):
             # 1. Verificar se há evento para o Humano ANTES de processar a semana
