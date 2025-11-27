@@ -94,52 +94,45 @@ class Player:
     def reset_season_stats(self):
         self.goals = 0; self.assists = 0; self.matches = 0; self.mvp_points = 0
 
-    def evolve(self):
+    def evolve(self, training_facility_level): # <--- RECEBE O NÍVEL DO CT
         """
-        Calcula a evolução do jogador baseado na temporada (RPG Engine).
-        Retorna o valor da mudança (ex: +2, -1, 0).
+        Calcula a evolução com bônus de infraestrutura.
         """
         growth = 0
         
-        # 1. Fator Idade (Curva de Desenvolvimento)
-        if self.age < 24:
-            base_chance = 60 # Jovens tendem a crescer
-        elif 24 <= self.age <= 30:
-            base_chance = 20 # Auge (estabilidade)
-        else:
-            base_chance = -30 # Veteranos tendem a cair (Regressão)
+        # 1. Fator Idade
+        if self.age < 24: base_chance = 60
+        elif 24 <= self.age <= 30: base_chance = 20
+        else: base_chance = -30
             
-        # 2. Fator Performance (XP)
-        # Cada jogo soma pontos de chance. Gols somam mais.
+        # 2. Fator Performance
         performance_xp = (self.matches * 2) + (self.goals * 3) + (self.assists * 2)
-        
-        # Bônus para quem joga muito
         if self.matches > 10: base_chance += 10
         if self.matches > 20: base_chance += 15
-        
-        # Bônus por desempenho excepcional
         if performance_xp > 50: base_chance += 20
         
-        # 3. Fator Potencial
-        # Se já atingiu o potencial, é muito difícil crescer mais
+        # --- 3. FATOR INFRAESTRUTURA (SPRINT 12.0) ---
+        # Cada nível de CT dá +3% de chance de evoluir
+        infra_bonus = training_facility_level * 3
+        base_chance += infra_bonus
+        # ---------------------------------------------
+        
+        # 4. Fator Potencial
         if self.overall >= self.potential:
             base_chance -= 40
             
-        # --- CÁLCULO FINAL (Rolagem de Dados) ---
+        # Rolagem
         roll = random.randint(0, 100) + (base_chance / 2)
         
-        if roll > 95: growth = 3      # Explosão (+3)
-        elif roll > 80: growth = 2    # Ótima evolução (+2)
-        elif roll > 50: growth = 1    # Evolução padrão (+1)
-        elif roll < 20 and self.age > 30: growth = -1 # Regressão leve
-        elif roll < 5 and self.age > 32: growth = -2  # Regressão forte
+        if roll > 95: growth = 3
+        elif roll > 80: growth = 2
+        elif roll > 50: growth = 1
+        elif roll < 20 and self.age > 30: growth = -1
+        elif roll < 5 and self.age > 32: growth = -2
         
-        # Aplicar
         self.overall += growth
-        self.overall = max(40, min(99, self.overall)) # Limites (40-99)
+        self.overall = max(40, min(99, self.overall))
         self.last_evolution = growth
-        
-        # Recalcular valor de mercado após evolução (Valorização/Desvalorização)
         self.market_value = self._calculate_value()
         
         return growth
@@ -963,34 +956,41 @@ class UniFUTEngine:
         for team in self.teams:
             new_roster = []
             for p in team.players:
-                # --- EVOLUÇÃO DINÂMICA ---
-                growth = p.evolve() # Calcula ganho baseado na temporada atual
+                # PASSAR O NÍVEL DO CT DO TIME
+                growth = p.evolve(team.training_level) 
                 
                 if growth > 0: evolution_log["up"] += 1
                 elif growth < 0: evolution_log["down"] += 1
                 else: evolution_log["stable"] += 1
                 
-                # Envelhecimento
                 p.age += 1
-                p.reset_season_stats() # Zera gols PARA O PRÓXIMO ANO
+                p.reset_season_stats()
                 
-                # Aposentadoria
+                # Aposentadoria e Regens (COM BASE NA ACADEMIA)
                 chance_retire = (p.age - 32) * 10 if p.age > 32 else 0
                 if random.randint(0, 100) < chance_retire:
                     retired_count += 1
-                    # Regen (Reposição da Base)
+                    
+                    # Regen Melhorado pela Base (Youth Level 1-10)
+                    # Base Lv1: Gera Ovr 40-50. Base Lv10: Gera Ovr 60-80.
                     pos = p.position
-                    ovr = random.randint(50, 70)
+                    min_ovr = 40 + (team.youth_level * 2)
+                    max_ovr = 55 + (team.youth_level * 2.5)
+                    ovr = int(random.uniform(min_ovr, max_ovr))
+                    
                     new_p = Player(self.fake.name_male(), pos, random.randint(16, 19), ovr, team.name)
                     new_p.name += " (Jr)"
-                    new_p.last_evolution = 0 # Novo, sem histórico
+                    new_p.last_evolution = 0
                     new_roster.append(new_p)
                 else:
                     new_roster.append(p)
             
             team.players = new_roster
-            team.reset_stats() # Zera pontos na tabela
-            team.revenue = 0 # Zera receita do ano (novo orçamento)
+            team.reset_stats()
+            team.revenue = 0
+            
+        self.season_year += 1
+        return f"Temporada {self.season_year} Iniciada! Infraestrutura influenciou o desenvolvimento."
             
         # 3. Atualizar Ano
         self.season_year += 1
@@ -1274,6 +1274,18 @@ class UniFUTEngine:
                     match.away_score = g2
                     match.narrative = evs
                     match.played = True
+
+                    # --- BILHETERIA (SPRINT 12.0) ---
+                    # Renda = Nível Estádio * Base * Multiplicador
+                    # Ex: Nível 5 * 50k = R$ 250k por jogo. Nível 10 = R$ 1M+
+                    ticket_income = match.home_team.stadium_level * 100_000 * random.uniform(0.8, 1.5)
+                    
+                    # LNF tem torcida maior (x4)
+                    if "LNF" in match.home_team.league:
+                        ticket_income *= 4
+                        
+                    match.home_team.budget += int(ticket_income)
+                    match.home_team.revenue += int(ticket_income)
                     
                     # Atualizar Tabela (apenas se for LNF Regular)
                     if "LNF" in match.competition and "Playoff" not in match.competition:
@@ -1624,7 +1636,7 @@ elif st.session_state.game_mode == "playing":
                 st.write(log)
 
     # ABAS PRINCIPAIS
-    tab_office, tab_squad, tab_league, tab_market = st.tabs(["🏢 Meu Escritório", "👕 Elenco & Tática", "🌍 O Mundo", "🔁 Mercado"])
+    tab_office, tab_squad, tab_league, tab_market, tab_infra = st.tabs(["🏢 Meu Escritório", "👕 Elenco & Tática", "🌍 O Mundo", "🔁 Mercado". "Infra"])
     
     with tab_office:
         # Próximo Jogo
@@ -1702,3 +1714,54 @@ elif st.session_state.game_mode == "playing":
                  st.dataframe(pd.DataFrame(transfers))
              else:
                  st.info("Nenhuma negociação relevante nesta semana.")
+
+    with tab_infra:
+        st.subheader("Gestão Patrimonial")
+        st.markdown("Invista em instalações para aumentar receitas e melhorar a qualidade do time a longo prazo.")
+        
+        col_stad, col_ct, col_base = st.columns(3)
+        
+        # 1. ESTÁDIO
+        with col_stad:
+            st.info("🏟️ **Estádio**")
+            st.metric("Nível Atual", f"Lv {my_team.stadium_level}/10")
+            st.caption("Aumenta a renda de bilheteria por jogo.")
+            
+            cost_stad = my_team.get_upgrade_cost("stadium")
+            if cost_stad:
+                if st.button(f"Expandir (R$ {cost_stad/1e6:.1f}M)", key="btn_stad"):
+                    success, msg = my_team.upgrade_facility("stadium")
+                    if success: st.success(msg); st.rerun()
+                    else: st.error(msg)
+            else:
+                st.success("Nível Máximo Atingido!")
+
+        # 2. CENTRO DE TREINAMENTO
+        with col_ct:
+            st.success("🏋️ **Centro de Treinamento**")
+            st.metric("Nível Atual", f"Lv {my_team.training_level}/10")
+            st.caption("Acelera a evolução (XP) dos jogadores.")
+            
+            cost_ct = my_team.get_upgrade_cost("training")
+            if cost_ct:
+                if st.button(f"Reformar (R$ {cost_ct/1e6:.1f}M)", key="btn_ct"):
+                    success, msg = my_team.upgrade_facility("training")
+                    if success: st.success(msg); st.rerun()
+                    else: st.error(msg)
+            else:
+                st.success("Nível Máximo Atingido!")
+
+        # 3. ACADEMIA DE BASE
+        with col_base:
+            st.warning("👶 **Academia de Base**")
+            st.metric("Nível Atual", f"Lv {my_team.youth_level}/10")
+            st.caption("Gera jovens talentos (Regens) com maior Overall inicial.")
+            
+            cost_base = my_team.get_upgrade_cost("youth")
+            if cost_base:
+                if st.button(f"Melhorar (R$ {cost_base/1e6:.1f}M)", key="btn_base"):
+                    success, msg = my_team.upgrade_facility("youth")
+                    if success: st.success(msg); st.rerun()
+                    else: st.error(msg)
+            else:
+                st.success("Nível Máximo Atingido!")
