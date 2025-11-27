@@ -189,6 +189,71 @@ class Calendar:
     def get_matches_for_week(self, week):
         return self.schedule.get(week, [])
 
+class Scenario:
+    def __init__(self, title, description, options, effects):
+        self.title = title
+        self.description = description
+        self.options = options # Lista ["Aceitar", "Recusar"]
+        self.effects = effects # Lista de funções lambda ou códigos de efeito
+        self.chosen_option = None
+
+    def resolve(self, choice_idx):
+        self.chosen_option = choice_idx
+        # O efeito será aplicado pela engine
+        return self.effects[choice_idx]
+
+# Banco de Eventos (Templates)
+def generate_random_event(team):
+    """Gera um cenário aleatório baseado no estado do time"""
+    dice = random.randint(1, 100)
+    
+    # CENÁRIO 1: PROPOSTA ARÁBE (Venda de Craque)
+    # Acontece se o time tem jogadores bons
+    if dice <= 30 and team.players:
+        # Pegar o melhor jogador
+        star = sorted(team.players, key=lambda x: x.overall, reverse=True)[0]
+        offer_value = int(star.market_value * 1.5) # Oferta irrecusável (50% acima)
+        
+        return Scenario(
+            title="💰 Proposta Irrecusável do Oriente Médio",
+            description=f"Um sheik ofereceu R$ {offer_value/1e6:.1f}M pelo seu craque **{star.name}** (Ovr {star.overall}).\n\nA diretoria deixa a decisão com você, mas avisa que o dinheiro seria ótimo para o caixa.",
+            options=["Vender (O dinheiro é bom)", "Segurar (Precisamos dele)"],
+            effects=[
+                {"type": "sell_player", "player": star, "value": offer_value},
+                {"type": "morale_boost", "value": 0} # Nada acontece, só mantém o jogador
+            ]
+        )
+
+    # CENÁRIO 2: CRISE NO VESTIÁRIO (Briga)
+    elif dice <= 50:
+        return Scenario(
+            title="🔥 Briga no Treino",
+            description="Dois titulares discutiram feio por causa de uma entrada dura. O clima pesou e o grupo espera uma reação sua.",
+            options=["Multar ambos (Disciplina)", "Conversar e perdoar (Apaziguar)"],
+            effects=[
+                {"type": "fine_players", "value": 50000}, # Ganha um troco, impõe respeito
+                {"type": "risk_form", "value": -5} # Risco de queda de rendimento
+            ]
+        )
+
+    # CENÁRIO 3: INVESTIMENTO NA BASE
+    elif dice <= 70:
+        cost = int(team.budget * 0.05) # 5% do caixa
+        return Scenario(
+            title="🏗️ Reforma no Centro de Treinamento",
+            description=f"O coordenador da base pede R$ {cost/1e6:.1f}M para comprar equipamentos novos de fisiologia. Isso pode acelerar a evolução dos jovens.",
+            options=["Aprovar Investimento", "Negar (Sem verba)"],
+            effects=[
+                {"type": "invest_youth", "cost": cost},
+                {"type": "none"}
+            ]
+        )
+    
+    # CENÁRIO 4: LESÃO LEVE (Simulação de Texto)
+    else:
+        # Se não cair em nenhum grave, retorna None (semana tranquila)
+        return None
+
 class Team:
     def __init__(self, name, league, conference, division, rating):
         self.name = name
@@ -1238,6 +1303,58 @@ class UniFUTEngine:
         # Agendar final
         pass
 
+
+    # --- NOVO: CHECAGEM DE EVENTOS (SPRINT 11.0) ---
+    def check_for_interruptions(self, user_team):
+        """
+        Roda antes da semana avançar.
+        Retorna um objeto Scenario se algo acontecer, ou None se seguir normal.
+        """
+        # Chance de evento: 30% por semana
+        if random.randint(1, 100) <= 30 and user_team:
+            event = generate_random_event(user_team)
+            return event
+        return None
+
+    def apply_event_effect(self, user_team, effect_data):
+        """Executa a consequência da escolha do usuário"""
+        msg = "Evento resolvido."
+        
+        if effect_data["type"] == "sell_player":
+            p = effect_data["player"]
+            val = effect_data["value"]
+            if p in user_team.players:
+                user_team.players.remove(p)
+                user_team.budget += val
+                user_team.revenue += val
+                msg = f"Venda confirmada! {p.name} deixou o clube. +R$ {val/1e6:.1f}M no caixa."
+            else:
+                msg = "O jogador já não estava mais no elenco (Bug de tempo)."
+
+        elif effect_data["type"] == "fine_players":
+            val = effect_data["value"]
+            user_team.budget += val # Multa volta pro clube
+            msg = "Disciplina restaurada. Multas aplicadas."
+
+        elif effect_data["type"] == "invest_youth":
+            cost = effect_data["cost"]
+            if user_team.budget >= cost:
+                user_team.budget -= cost
+                # Bônus: Dá um boost imediato de evolução em 3 jovens aleatórios
+                jovens = [p for p in user_team.players if p.age < 21]
+                if jovens:
+                    beneficiados = random.sample(jovens, min(3, len(jovens)))
+                    for j in beneficiados:
+                        j.overall += 1
+                        j.potential += 1
+                    msg = "Equipamentos comprados! Jovens da base evoluíram imediatamente."
+                else:
+                    msg = "Investimento feito, mas você não tem jovens para aproveitar."
+            else:
+                msg = "Investimento cancelado por falta de fundos."
+
+        return msg
+
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
 @st.cache_resource
@@ -1341,6 +1458,9 @@ if "game_mode" not in st.session_state:
     else:
         st.session_state.game_mode = "setup"
 
+if "pending_event" not in st.session_state:
+    st.session_state.pending_event = None
+
 # --- TELA 1: SELEÇÃO DE TIME (SETUP) ---
 if st.session_state.game_mode == "setup":
     st.title("UniFUT 26 - Bem-vindo ao Mundo do Futebol")
@@ -1388,18 +1508,82 @@ elif st.session_state.game_mode == "playing":
     st.sidebar.header(f"🗓️ Semana {engine.current_week} / 52")
     st.sidebar.progress(engine.current_week / 52)
 
-    if st.sidebar.button("⏩ SIMULAR SEMANA", type="primary"):
-        with st.spinner("O mundo do futebol está girando..."):
-            logs = engine.advance_week()
-            st.session_state.logs = logs
-            st.rerun()
-
+    if st.session_state.pending_event:
+    st.sidebar.warning("⚠️ Evento Pendente!")
+    st.sidebar.info("Resolva a situação na tela principal para continuar.")
+    else:
+        if st.sidebar.button("⏩ SIMULAR SEMANA", type="primary"):
+            # 1. Verificar se há evento para o Humano ANTES de processar a semana
+            user_team = engine.get_user_team()
+            event = engine.check_for_interruptions(user_team)
+        
+            if event:
+                # PAUSA TUDO! Mostra o evento.
+                st.session_state.pending_event = event
+                st.rerun()
+            else:
+                # Segue o jogo normal
+                with st.spinner("Processando a semana..."):
+                    logs = engine.advance_week()
+                    st.session_state.logs = logs
+                    st.rerun()
+    
     st.sidebar.divider()
     st.sidebar.header("Sistema")
     st.sidebar.download_button("📥 Salvar Carreira", data=engine.to_json(), file_name=f"save_{my_team.name}.json", mime="application/json")
     
     # --- ÁREA PRINCIPAL ---
     st.title(f"Painel do Treinador")
+
+    # TELA DE INTERRUPÇÃO (MODAL DE EVENTO)
+    if st.session_state.pending_event:
+        event = st.session_state.pending_event
+        
+        st.markdown("---")
+        st.error(f"🚨 {event.title}") # Destaque visual
+        st.markdown(f"##### {event.description}")
+        
+        st.markdown("---")
+        st.write("**Qual é a sua decisão?**")
+        
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            if st.button(f"🅰️ {event.options[0]}", use_container_width=True):
+                effect = event.resolve(0) # Escolheu opção 0
+                result_msg = engine.apply_event_effect(engine.get_user_team(), effect)
+                
+                # Registrar no log
+                if "logs" not in st.session_state: st.session_state.logs = []
+                st.session_state.logs.insert(0, f"🔔 **Decisão:** {event.title} -> {event.options[0]}")
+                st.session_state.logs.insert(0, f"ℹ️ {result_msg}")
+                
+                # Limpar evento e AVANÇAR a semana que estava travada
+                st.session_state.pending_event = None
+                
+                # Avançar a semana agora (já que o clique original foi interrompido)
+                with st.spinner("Decisão tomada. Avançando semana..."):
+                    logs = engine.advance_week()
+                    st.session_state.logs = logs + st.session_state.logs
+                st.rerun()
+                
+        with c2:
+            if st.button(f"🅱️ {event.options[1]}", use_container_width=True):
+                effect = event.resolve(1) # Escolheu opção 1
+                result_msg = engine.apply_event_effect(engine.get_user_team(), effect)
+                
+                st.session_state.logs.insert(0, f"🔔 **Decisão:** {event.title} -> {event.options[1]}")
+                st.session_state.logs.insert(0, f"ℹ️ {result_msg}")
+                
+                st.session_state.pending_event = None
+                
+                with st.spinner("Decisão tomada. Avançando semana..."):
+                    logs = engine.advance_week()
+                    st.session_state.logs = logs + st.session_state.logs
+                st.rerun()
+                
+        st.markdown("---")
+        st.stop() # Interrompe o resto da interface para focar na decisão
     
     # Feed de Notícias
     if "logs" in st.session_state:
