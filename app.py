@@ -1363,191 +1363,26 @@ if "logs" in st.session_state:
             st.write(log)
 
 # Abas Principais
-tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history, tab_market = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes", "Histórico", "Mercado"])
+tab_jogos, tab_classificacao, tab_finance, tab_clubs, tab_market = st.tabs(["Jogos", "Classificação", "💰 Finanças", "Clubes", "Mercado"])
 
-with tab_lnf:
-    st.header(f"Liga Nacional de Futebol - {season_year}")
+with tab_jogos:
+    st.header(f"Jogos da Semana {engine.current_week - 1}")
+    last_week_matches = engine.calendar.get_matches_for_week(engine.current_week - 1)
     
-    if st.session_state.simulated_lnf:
-        column_config = {
-            "Logo": st.column_config.ImageColumn("Escudo", width="small"),
-            "Time": st.column_config.TextColumn("Clube", width="medium"),
-            "Pts": st.column_config.ProgressColumn("Pontos", format="%d", min_value=0, max_value=60),
-        }
-
-        # Exibir tabelas por Conferência
-        lnf_teams = engine.get_teams_by_league("LNF")
-        df = get_standings_df(lnf_teams)
-        
-        st.subheader("Classificação Oficial LNF")
-        
-        tab_br, tab_nac = st.tabs(["Conferência Brasileira", "Conferência Nacional"])
-        
-        with tab_br:
-            df_br = df[df["Conf"] == "Brasileira"].drop(columns=["Conf"])
-            st.dataframe(df_br, column_config=column_config, hide_index=True, use_container_width=True)
-            
-        with tab_nac:
-            df_nac = df[df["Conf"] == "Nacional"].drop(columns=["Conf"])
-            st.dataframe(df_nac, column_config=column_config, hide_index=True, use_container_width=True)
-            
-        st.divider()
-        st.subheader("Simulação de Playoffs (Top 7 por Conferência)")
-        if st.button("Gerar Playoffs LNF"):
-            # Lógica simples de pegar os Top 7
-            top7_br = df_br.head(7)["Time"].tolist()
-            top7_nac = df_nac.head(7)["Time"].tolist()
-            
-            st.write(f"**Classificados Brasileira:** {', '.join(top7_br)}")
-            st.write(f"**Classificados Nacional:** {', '.join(top7_nac)}")
-            
-            # Super Bowl Simulado
-            finalist_br = top7_br[0] # Simplificação: Seed 1 vence
-            finalist_nac = top7_nac[0]
-            
-            st.success(f"🏆 SUPER BOWL BRASILEIRO: {finalist_br} vs {finalist_nac}")
-            score_a, score_b = engine.simulate_match(
-                next(t for t in lnf_teams if t.name == finalist_br),
-                next(t for t in lnf_teams if t.name == finalist_nac),
-                is_knockout=True
-            )
-            st.metric(label="Resultado Final", value=f"{finalist_br} {score_a} x {score_b} {finalist_nac}")
-            
+    if last_week_matches:
+        for m in last_week_matches:
+            st.write(f"🏠 {m.home_team.name} {m.home_score} x {m.away_score} {m.away_team.name} ✈️")
+            with st.expander("Detalhes"):
+                for line in m.narrative: st.caption(line)
+            st.divider()
     else:
-        st.info("Clique em 'Simular Temporada Regular' no menu lateral para iniciar.")
-        st.write("Estrutura carregada: 32 Franquias, 2 Conferências, 8 Divisões.")
+        st.info("Nenhum jogo realizado na semana anterior.")
 
-with tab_college:
-    st.header("Sistema Secundário (College 1)")
-    st.write("96 Times divididos em 8 Conferências Regionais.")
-    
-    college_teams = engine.get_teams_by_league("College 1")
-    
-    # Filtro por conferência
-    confs = list(set([t.division for t in college_teams]))
-    selected_conf = st.selectbox("Selecione a Conferência", confs)
-    
-    # Mostrar times da conferência
-    conf_teams = [t for t in college_teams if t.division == selected_conf]
-    df_college = pd.DataFrame([{"Time": t.name, "Rating": t.rating} for t in conf_teams])
-    st.dataframe(df_college)
-    
-    st.info("A simulação detalhada do College (20 jogos) será implementada na v2 do software.")
-
-with tab_copas:
-    st.header("Ecossistema de Copas & Bowls 2026")
-    
-    # Agora com 3 colunas!
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        st.subheader("🏆 Copa do Brasil")
-        st.caption("CBF (LNF + College + Qualy)")
-        if st.button("Simular Copa do Brasil"):
-            if not st.session_state.simulated_lnf:
-                st.error("Simule a LNF primeiro!")
-            else:
-                with st.spinner("Processando..."):
-                    log_cdb, campeao_cdb = engine.run_copa_brasil()
-                st.success(f"CAMPEÃO: {campeao_cdb.name}")
-                with st.expander("Detalhes"):
-                    for fase, jogos in log_cdb.items():
-                        st.write(f"**{fase}**")
-                        for jogo in jogos: st.text(jogo)
-    
-    with col2:
-        st.subheader("🥣 Bowls Regionais")
-        st.caption("Campeões de Conferência")
-        if st.button("Simular Bowls"):
-            bowls_res = engine.run_regional_bowls()
-            for bowl in bowls_res:
-                with st.expander(f"{bowl['Bowl']} ({bowl['Campeão']})"):
-                    st.write(f"{bowl['Confronto']}")
-                    st.write(f"Placar: {bowl['Placar']}")
-
-    with col3:
-        st.subheader("🥇 National Playoff")
-        st.caption("Top 12 College (NCP)")
-        st.markdown("O ápice da temporada universitária.")
-        
-        if st.button("Simular NCP"):
-            with st.spinner("Definindo o Campeão Nacional..."):
-                log_ncp, campeao_ncp = engine.run_ncp()
-            
-            st.balloons() # Efeito visual de festa!
-            st.success(f"CAMPEÃO NACIONAL: {campeao_ncp.name}")
-            
-            for item in log_ncp:
-                if "---" in item or "Top 4" in item:
-                    st.markdown(f"**{item}**")
-                else:
-                    st.write(item)
-
-with tab_draft:
-    st.header("Draft UniFUT 2026")
-    st.markdown("""
-    O Draft ocorre em **7 Rodadas**. A ordem é inversa à classificação da LNF.
-    Os jogadores são selecionados do sistema **College** (College 1 e 2).
-    """)
-    
-    if st.session_state.simulated_lnf:
-        # 1. Definir Ordem do Draft (Pior -> Melhor campanha LNF)
-        lnf_teams = engine.get_teams_by_league("LNF")
-        # Critério: Menos pontos primeiro. Desempate: Menor saldo.
-        draft_order = sorted(lnf_teams, key=lambda x: (x.points, x.goal_diff))
-        
-        # 2. Listar Prospectos (Jogadores do College)
-        college_teams = engine.get_teams_by_league("College")
-        all_prospects = []
-        for t in college_teams:
-            all_prospects.extend(t.players)
-        
-        # Ordenar prospectos por Overall (Melhores disponíveis)
-        all_prospects.sort(key=lambda x: x.overall, reverse=True)
-        
-        # UI: Mostrar Top Prospectos
-        st.subheader("Top 5 Prospectos Disponíveis (Big Board)")
-        top_prospects = all_prospects[:5]
-        df_prospects = pd.DataFrame([{
-            "Nome": p.name, "Pos": p.position, 
-            "Idade": p.age, "Overall": p.overall, 
-            "Origem": p.team_name
-        } for p in top_prospects])
-        st.table(df_prospects)
-        
-        # Botão para Realizar o Draft
-        if st.button("Realizar Draft Completo (7 Rodadas)"):
-            draft_results = []
-            
-            # Simulação do Draft
-            prospect_index = 0
-            for round_num in range(1, 8):
-                for team in draft_order:
-                    # Time pega o melhor jogador disponível
-                    pick = all_prospects[prospect_index]
-
-                    engine.process_draft_payment(team, pick.team_name, round_num)
-                    # Transferência Lógica
-                    # Remover do time antigo (College) e adicionar no novo (LNF) - Simplificado
-                    pick.team_name = team.name # Atualiza a camisa
-                    team.players.append(pick)
-                    
-                    draft_results.append({
-                        "Rodada": round_num,
-                        "Time LNF": team.name,
-                        "Jogador Escolhido": pick.name,
-                        "Pos": pick.position,
-                        "Overall": pick.overall,
-                        "Veio de": all_prospects[prospect_index].team_name # Hack para mostrar origem antiga
-                    })
-                    
-                    prospect_index += 1
-            
-            st.success("Draft Concluído com Sucesso!")
-            st.dataframe(pd.DataFrame(draft_results), height=500)
-            
-    else:
-        st.warning("⚠️ Você precisa simular a Temporada Regular da LNF primeiro para definir a ordem das escolhas.")
+with tab_classificacao:
+    st.header(f"Classificação LNF - {engine.season_year}") # Correção aplicada aqui também
+    lnf_teams = engine.get_teams_by_league("LNF")
+    df = get_standings_df(lnf_teams)
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
 with tab_finance:
     st.header("Painel Financeiro & Fair Play")
@@ -1654,57 +1489,6 @@ with tab_clubs:
                 with st.expander("📺 Ver Melhores Momentos (Minuto a Minuto)", expanded=True):
                     for event in events:
                         st.write(event)
-
-with tab_history:
-    st.header("Observatório Nacional de Performance (ONP)")
-    
-    # Estatísticas Atuais
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader(f"Artilharia LNF {engine.season_year}")
-        lnf_teams = engine.get_teams_by_league("LNF")
-        all_lnf_players = [p for t in lnf_teams for p in t.players]
-        # Top 10 Artilheiros
-        top_scorers = sorted(all_lnf_players, key=lambda x: x.goals, reverse=True)[:10]
-        
-        df_goals = pd.DataFrame([{
-            "Jogador": p.name,
-            "Time": p.team_name,
-            "Gols": p.goals,
-            "Overall": p.overall
-        } for p in top_scorers])
-        st.table(df_goals)
-        
-    with col2:
-        st.subheader("Galeria de Troféus (Hall of Fame)")
-        if len(engine.history) > 0:
-            st.dataframe(pd.DataFrame(engine.history), use_container_width=True)
-        else:
-            st.info("Nenhuma temporada concluída ainda.")
-
-    st.divider()
-    
-    # ZONA DE TRANSIÇÃO DE TEMPORADA
-    st.subheader("⚙️ Gestão de Tempo")
-    st.markdown("Ao encerrar a temporada, os jogadores envelhecem, estatísticas resetam e o ano vira.")
-    
-    if st.button("Avance para a Próxima Temporada ⏩"):
-        # Precisamos saber quem foi o campeão para salvar no histórico
-        # Vamos pegar quem tem mais pontos na LNF como "Campeão" se não houver playoff rodado
-        # Idealmente, pegaríamos do estado do playoff, mas aqui faremos uma estimativa segura
-        lnf_teams = engine.get_teams_by_league("LNF")
-        champ_lnf = sorted(lnf_teams, key=lambda x: x.points, reverse=True)[0]
-        
-        college_teams = engine.get_teams_by_league("College")
-        champ_college = sorted(college_teams, key=lambda x: x.rating, reverse=True)[0] # Proxy
-        
-        msg = engine.advance_season(champ_lnf, champ_college)
-        
-        # Resetar estados da UI
-        st.session_state.simulated_lnf = False
-        st.success(msg)
-        st.balloons()
 
 with tab_market:
     st.header("Mercado da Bola 🔁")
