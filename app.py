@@ -163,6 +163,32 @@ class Player:
         p.last_evolution = data.get("last_evolution", 0)
         return p
 
+class Match:
+    def __init__(self, home_team, away_team, week, competition_name):
+        self.home_team = home_team
+        self.away_team = away_team
+        self.week = week
+        self.competition = competition_name
+        self.played = False
+        self.home_score = 0
+        self.away_score = 0
+        self.narrative = [] # Para guardar o "minuto a minuto"
+
+    def __repr__(self):
+        return f"W{self.week}: {self.home_team.name} vs {self.away_team.name} ({self.competition})"
+
+class Calendar:
+    def __init__(self):
+        # Dicionário: Chave = Semana (int), Valor = Lista de Match objects
+        self.schedule = {i: [] for i in range(1, 53)} 
+    
+    def add_match(self, match):
+        if 1 <= match.week <= 52:
+            self.schedule[match.week].append(match)
+            
+    def get_matches_for_week(self, week):
+        return self.schedule.get(week, [])
+
 class Team:
     def __init__(self, name, league, conference, division, rating):
         self.name = name
@@ -253,120 +279,102 @@ class LNFScheduler:
             if t.conference not in struct: struct[t.conference] = {}
             if t.division not in struct[t.conference]: struct[t.conference][t.division] = []
             struct[t.conference][t.division].append(t)
-        
-        # Ordenar cada divisão por Rating (simulando seed para definir confrontos por posição)
-        for conf in struct:
-            for div in struct[conf]:
-                struct[conf][div].sort(key=lambda x: x.rating, reverse=True)
         return struct
 
     def generate_schedule(self):
-        schedule = []
+        # Gera os confrontos (lógica matemática idêntica à anterior)
+        # Mas agora retorna objetos Match distribuídos nas semanas 21-39
+        raw_matchups = self._generate_raw_matchups() 
+        
+        schedule_objs = []
+        # Embaralhar para não ter "mês só de clássico"
+        random.shuffle(raw_matchups)
+        
+        # Distribuir nas 19 semanas da Temporada Regular (Semana 21 a 39)
+        start_week = 21
+        total_weeks = 19
+        
+        # Agrupar jogos por rodada (8 jogos por conferência x 2 = 16 jogos/semana)
+        # Simplificação: Distribuir uniformemente
+        matches_per_week = len(raw_matchups) // total_weeks
+        
+        current_week = start_week
+        count = 0
+        
+        for home, away, type_ in raw_matchups:
+            # Criar objeto Match
+            match = Match(home, away, current_week, f"LNF ({type_})")
+            schedule_objs.append(match)
+            
+            count += 1
+            if count >= matches_per_week and current_week < (start_week + total_weeks - 1):
+                count = 0
+                current_week += 1
+                
+        return schedule_objs
+
+    def _generate_raw_matchups(self):
+        # (Lógica original de pares e rodízio que criamos na Sprint B)
+        # Copiei a lógica interna para garantir integridade, mas retornando lista pura
+        matchups = []
         divs_order = ["Leste", "Oeste", "Norte", "Sul"]
-        
-        # MAPA DE RODÍZIO (PARES FIXOS)
-        # Garante reciprocidade exata: Se 0 enfrenta 1, 1 enfrenta 0.
-        # Índices: 0=Leste, 1=Oeste, 2=Norte, 3=Sul
-        rotation_map = [
-            {0:1, 1:0, 2:3, 3:2}, # Ano 1: Leste x Oeste / Norte x Sul
-            {0:2, 2:0, 1:3, 3:1}, # Ano 2: Leste x Norte / Oeste x Sul
-            {0:3, 3:0, 1:2, 2:1}  # Ano 3: Leste x Sul / Oeste x Norte
-        ]
-        
-        # Offset diferente para Intra e Inter conferência para variar os oponentes
-        intra_year_idx = self.year % 3
-        inter_year_idx = (self.year + 1) % 3 
-        
-        intra_map = rotation_map[intra_year_idx]
-        inter_map = rotation_map[inter_year_idx]
+        rotation_map = [{0:1, 1:0, 2:3, 3:2}, {0:2, 2:0, 1:3, 3:1}, {0:3, 3:0, 1:2, 2:1}]
+        intra_map = rotation_map[self.year % 3]
+        inter_map = rotation_map[(self.year + 1) % 3]
+
+        seen = set()
 
         for conf in self.structure:
             for div_name in divs_order:
                 my_idx = divs_order.index(div_name)
                 my_teams = self.structure[conf][div_name]
-                
-                # Definir divisões alvo baseadas nos mapas
-                target_intra_idx = intra_map[my_idx]
-                target_intra_div = divs_order[target_intra_idx]
-                
-                target_inter_idx = inter_map[my_idx]
-                target_inter_div = divs_order[target_inter_idx]
-                
+                target_intra_div = divs_order[intra_map[my_idx]]
+                target_inter_div = divs_order[inter_map[my_idx]]
                 other_conf = "Nacional" if conf == "Brasileira" else "Brasileira"
 
                 for i, t1 in enumerate(my_teams):
-                    seed = i # 0 a 3 (ranking na divisão)
-                    
-                    # --- 1. DIVISIONAL (6 Jogos) ---
-                    # Ida e Volta contra os 3 rivais da mesma divisão
-                    for j, t2 in enumerate(my_teams):
+                    seed = i 
+                    # 1. Divisional
+                    for t2 in my_teams:
                         if t1 == t2: continue
-                        # Adicionamos aqui apenas o jogo onde t1 é mandante
-                        # O loop quando chegar em t2 adicionará a volta
-                        schedule.append((t1, t2, "Divisional"))
+                        matchups.append((t1, t2, "Divisional")) # Ida e Volta mantidos
 
-                    # --- 2. INTRA-CONFERÊNCIA RODÍZIO (4 Jogos) ---
-                    # Contra todos da divisão alvo (Leste x Oeste)
-                    target_teams = self.structure[conf][target_intra_div]
-                    for t2 in target_teams:
-                        schedule.append((t1, t2, "Intra-Rot"))
+                    # 2. Intra-Rodízio
+                    for t2 in self.structure[conf][target_intra_div]:
+                        self._add_unique(matchups, seen, t1, t2, "Intra-Rot")
 
-                    # --- 3. INTER-CONFERÊNCIA RODÍZIO (4 Jogos) ---
-                    # Contra todos da divisão alvo da outra conferência
-                    target_teams_inter = self.structure[other_conf][target_inter_div]
-                    for t2 in target_teams_inter:
-                        schedule.append((t1, t2, "Inter-Rot"))
+                    # 3. Inter-Rodízio
+                    for t2 in self.structure[other_conf][target_inter_div]:
+                        self._add_unique(matchups, seen, t1, t2, "Inter-Rot")
                         
-                    # --- 4. INTRA-POSIÇÃO (2 Jogos) ---
-                    # Contra mesmo seed das 2 divisões que sobraram na minha conferência
-                    for other_div_name in divs_order:
-                        if other_div_name == div_name: continue # Minha divisão
-                        if other_div_name == target_intra_div: continue # Já joguei no rodízio
-                        
-                        rival = self.structure[conf][other_div_name][seed]
-                        schedule.append((t1, rival, "Intra-Pos"))
-                        
-                    # --- 5. INTER-POSIÇÃO (3 Jogos) ---
-                    # Contra mesmo seed das 3 divisões que sobraram na outra conferência
-                    for other_div_name in divs_order:
-                        if other_div_name == target_inter_div: continue # Já joguei no rodízio
-                        
-                        rival = self.structure[other_conf][other_div_name][seed]
-                        schedule.append((t1, rival, "Inter-Pos"))
+                    # 4. Intra-Posição
+                    for other_div in divs_order:
+                        if other_div != div_name and other_div != target_intra_div:
+                            rival = self.structure[conf][other_div][seed]
+                            self._add_unique(matchups, seen, t1, rival, "Intra-Pos")
+                    
+                    # 5. Inter-Posição
+                    for other_div in divs_order:
+                        if other_div != target_inter_div:
+                            rival = self.structure[other_conf][other_div][seed]
+                            self._add_unique(matchups, seen, t1, rival, "Inter-Pos")
+        return matchups
 
-        # --- LIMPEZA E DEDUPLICAÇÃO ---
-        # Como o loop roda para todos os times, jogos de turno único (Rotação/Posição)
-        # são gerados duas vezes (A gera contra B, depois B gera contra A).
-        # Vamos remover as duplicatas mantendo apenas uma ocorrência.
-        
-        unique_schedule = []
-        seen = set()
-        
-        for h, a, type_ in schedule:
-            if h.name == a.name: continue
-            
-            if type_ == "Divisional":
-                # Divisional é ida e volta explícita, aceitamos todas as ocorrências geradas
-                # (O loop acima gera A x B e depois B x A, ambos são válidos)
-                unique_schedule.append((h, a, type_))
-            else:
-                # Jogos de turno único: Dedupicar usando ID ordenado
-                match_id = tuple(sorted([h.name, a.name]))
-                if match_id not in seen:
-                    seen.add(match_id)
-                    # Sorteia mando para não viciar
-                    if random.choice([True, False]):
-                        unique_schedule.append((h, a, type_))
-                    else:
-                        unique_schedule.append((a, h, type_))
-                        
-        return unique_schedule
+    def _add_unique(self, list_ref, seen_set, t1, t2, type_):
+        mid = tuple(sorted([t1.name, t2.name]))
+        if mid not in seen_set:
+            seen_set.add(mid)
+            if random.choice([True, False]): list_ref.append((t1, t2, type_))
+            else: list_ref.append((t2, t1, type_))
 
 class UniFUTEngine:
     def __init__(self):
         self.teams = []
         self.season_year = 2026
+        self.current_week = 1  # <--- NOVO: Controle de Tempo (1 a 52)
+        self.calendar = Calendar() # <--- NOVO: Objeto Calendário
         self.fake = Faker('pt_BR') # Inicializa gerador de nomes BR
+        self.history = []
         
     def add_team(self, team):
         self.teams.append(team)
@@ -1080,6 +1088,79 @@ class UniFUTEngine:
             
             team.coach = Coach(name, style, age)
 
+    def generate_full_calendar(self):
+        """Preenche o calendário anual (Semanas 1-52) conforme especificação"""
+        self.calendar = Calendar() # Reset
+        
+        # 1. Agendar LNF (Semanas 21-39)
+        lnf_teams = self.get_teams_by_league("LNF")
+        scheduler_lnf = LNFScheduler(lnf_teams, self.season_year)
+        lnf_matches = scheduler_lnf.generate_schedule()
+        for m in lnf_matches:
+            self.calendar.add_match(m)
+            
+        # 2. Agendar College (Semanas 19-43)
+        # (Simplificação: Gerar jogos aleatórios para College por enquanto)
+        college_teams = self.get_teams_by_league("College")
+        for week in range(19, 44):
+            # Exemplo: 10 jogos aleatórios por semana no College para dar vida
+            # (Na versão final, usaríamos um scheduler real para os 192 times)
+            daily_pool = random.sample(college_teams, 20)
+            for i in range(0, 20, 2):
+                self.calendar.add_match(Match(daily_pool[i], daily_pool[i+1], week, "College Season"))
+
+        # 3. Copas (Libertadores, Sula, Copa do Brasil)
+        # (Podemos adicionar placeholders aqui ou gerar dinamicamente quando a semana chegar)
+
+    # --- CORE: AVANÇAR SEMANA (FRANCHISE MODE) ---
+    def advance_week(self):
+        """Processa a semana atual e avança para a próxima"""
+        logs = []
+        logs.append(f"📅 **Processando Semana {self.current_week}...**")
+        
+        # 1. Simular Jogos da Semana
+        matches = self.calendar.get_matches_for_week(self.current_week)
+        if matches:
+            for match in matches:
+                if not match.played:
+                    g1, g2, evs = self.simulate_match(match.home_team, match.away_team, return_events=True)
+                    
+                    # Salvar resultado no objeto Match
+                    match.home_score = g1
+                    match.away_score = g2
+                    match.narrative = evs
+                    match.played = True
+                    
+                    # Atualizar tabela do time
+                    self.update_table(match.home_team, match.away_team, g1, g2)
+                    
+                    # Evolução de XP dos jogadores (Sprint 7.0 integrada)
+                    # (Poderíamos chamar evolve() aqui, mas deixamos pro fim do ano pra não ficar pesado)
+            
+            logs.append(f"✅ {len(matches)} jogos simulados.")
+        else:
+            logs.append("💤 Nenhum jogo agendado para esta semana.")
+
+        # 2. Eventos de Calendário Específicos (Gatilhos)
+        if self.current_week == 40:
+            logs.append("🔥 **Fim da Temporada Regular LNF!** Playoffs definidos.")
+            # Aqui chamaríamos a função para gerar a árvore de playoffs e agendar nas semanas 41-44
+            
+        if self.current_week == 48:
+            logs.append("🎓 **Semana do Draft!** As escolhas estão abertas.")
+
+        # 3. Processamento Financeiro Semanal (Salários pingados?)
+        # Por enquanto mantemos anual, mas aqui entraria a lógica de fluxo de caixa
+
+        # 4. Avançar
+        self.current_week += 1
+        if self.current_week > 52:
+            self.current_week = 1
+            logs.append("🎆 **Ano Novo!** Iniciando nova temporada...")
+            # Aqui chamaríamos o advance_season() completo
+            
+        return logs
+
 # --- INICIALIZAÇÃO DOS DADOS (BASEADO NO PDF) ---
 
 @st.cache_resource
@@ -1133,6 +1214,8 @@ def initialize_system():
     engine.generate_coaches()
 
     engine.initialize_economy()
+
+    engine.generate_full_calendar()
 
     return engine
 
@@ -1249,6 +1332,48 @@ if st.sidebar.button("Simular Temporada Regular LNF"):
     run_lnf_regular_season(engine)
     st.session_state.simulated_lnf = True
 
+# --- INTERFACE MODO FRANCHISE ---
+
+# Layout Principal: Dashboard
+st.markdown(f"### 🗓️ Temporada {engine.season_year} | Semana {engine.current_week}/52")
+progress = (engine.current_week / 52)
+st.progress(progress)
+
+# Colunas de Controle
+col_dash, col_news = st.columns([1, 2])
+
+with col_dash:
+    st.subheader("Painel de Controle")
+    
+    # Contexto da Semana
+    if 1 <= engine.current_week <= 19:
+        st.info("🏆 Fase de Copas Continentais (Liberta/Sula)")
+    elif 21 <= engine.current_week <= 39:
+        st.success("⚽ Temporada Regular LNF (Em andamento)")
+    elif 40 <= engine.current_week <= 44:
+        st.warning("🔥 Playoffs da LNF & Super Bowl")
+    elif 45 <= engine.current_week <= 52:
+        st.error("💤 Offseason & Draft")
+    
+    # O BOTÃO MÁGICO
+    if st.button("⏩ SIMULAR SEMANA", type="primary", use_container_width=True):
+        with st.spinner("Processando jogos, finanças e notícias..."):
+            logs = engine.advance_week()
+            st.session_state.logs = logs # Guardar logs na sessão
+            st.rerun()
+
+with col_news:
+    st.subheader("📰 Notícias da Semana")
+    if "logs" in st.session_state:
+        for log in st.session_state.logs:
+            st.write(log)
+            
+    # Mostrar jogos da semana (Resultados ou Agendados)
+    matches_this_week = engine.calendar.get_matches_for_week(engine.current_week - 1) # Mostra da semana que passou
+    if matches_this_week:
+        with st.expander(f"Resultados da Semana {engine.current_week - 1}", expanded=True):
+            for m in matches_this_week:
+                st.write(f"**{m.home_team.name}** {m.home_score} x {m.away_score} **{m.away_team.name}**")
 
 # Abas Principais
 tab_lnf, tab_college, tab_copas, tab_draft, tab_finance, tab_clubs, tab_history, tab_market = st.tabs(["LNF (Elite)", "College (Base)", "Copas & Bowls", "Draft", "💰 Finanças", "Clubes", "Histórico", "Mercado"])
